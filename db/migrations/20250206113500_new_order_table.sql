@@ -7,10 +7,10 @@ CREATE TABLE order (
     updt DATETIME
 )
 
-CREATE UNIQUE INDEX ON order INCLUDE extnum
+CREATE UNIQUE INDEX idx_extnum ON order INCLUDE extnum
 
 CREATE TABLE request (
-    id SERIAL PRIMARY,
+    id SERIAL PRIMARY KEY,
     pid INT(11),
     out TEXT,
     in TEXT,
@@ -18,7 +18,7 @@ CREATE TABLE request (
     updt DATETIME
 )
 
-CREATE INDEX ON request INCLUDE pid
+CREATE INDEX idx_pid ON request INCLUDE pid
 -- +goose StatementEnd
 
 -- +goose Down

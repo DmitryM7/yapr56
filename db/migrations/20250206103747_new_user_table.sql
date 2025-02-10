@@ -13,7 +13,7 @@ CREATE TABLE person (
     crdt  DATETIME,
     updt DATETIME
 )
-CREATE UNIQUE INDEX login_pass ON person INCLUDE (login,pass,status)
+CREATE UNIQUE INDEX idx_login_pass ON person INCLUDE (login,pass,status)
 -- +goose Down
 -- +goose StatementBegin
 DROP TABLE person
