@@ -1,7 +1,52 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"log"
+	"net/http"
+	"time"
+
+	"github.com/DmitryM7/yapr56.git/internal/conf"
+	"github.com/DmitryM7/yapr56.git/internal/controller"
+	"github.com/DmitryM7/yapr56.git/internal/logger"
+	"github.com/DmitryM7/yapr56.git/internal/sec"
+	"github.com/DmitryM7/yapr56.git/internal/service"
+)
 
 func main() {
-	fmt.Println("GO")
+	if err := run(); err != nil {
+		log.Panicln("CAN'T RUN MAIN PROCEDURE")
+	}
+}
+
+func run() error {
+
+	config := conf.NewConf()
+
+	logger := logger.NewLg()
+
+	logger.Infoln("START...")
+
+	service, err := service.NewService(logger)
+
+	if err != nil {
+		return err
+	}
+
+	jwt := sec.NewJwtProvider(config.SecretKeyTime, config.SecretKey)
+
+	router := controller.NewRouter(logger, service, jwt)
+
+	server := &http.Server{
+		Addr:         config.BndAdr,
+		Handler:      router,
+		WriteTimeout: 30 * time.Second,
+		ReadTimeout:  30 * time.Second,
+	}
+
+	if errServ := server.ListenAndServe(); errServ != nil {
+		return fmt.Errorf("CAN'T EXECUTE SERVER [%w]", errServ)
+	}
+
+	return nil
 }

@@ -22,7 +22,7 @@ func NewLg() Lg {
 	defer func() {
 		err := logger.Sync()
 		if err != nil {
-			log.Println("CAN'T SYNC LOGGER")
+			log.Println("CAN'T SYNC LOGGER:", err)
 		}
 	}()
 
