@@ -15,16 +15,15 @@ func NewRouter(log logger.Lg, serv service.StorageService, jwt IJwtService) *chi
 	}
 
 	R.Use(server.actMiddleWare)
-
-	R.Route("/api", func(r chi.Router) {
-		R.Route("/user", func(r chi.Router) {
-			R.Post("/register", server.actUserRegister)
-			R.Post("/login", server.actUserLogin)
-			R.Post("/orders", server.actOrdersUpload)
-			R.Get("/orders", server.actOrders)
-			R.Get("/balance", server.actAcctBalance)
-			R.Get("/balance/withdraw", server.actAcctDebit)
-			R.Get("/withdraw", server.actAcctStatement)
+	R.Route("/", func(r chi.Router) {
+		R.Route("/api/user", func(r chi.Router) {
+			r.Post("/register", server.actUserRegister)
+			r.Post("/login", server.actUserLogin)
+			r.Post("/orders", server.actOrdersUpload)
+			r.Get("/orders", server.actOrders)
+			r.Get("/balance", server.actAcctBalance)
+			r.Get("/balance/withdraw", server.actAcctDebit)
+			r.Get("/withdraw", server.actAcctStatement)
 		})
 	})
 

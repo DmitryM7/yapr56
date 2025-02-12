@@ -53,7 +53,7 @@ func (s *Srv) actUserRegister(w http.ResponseWriter, r *http.Request) {
 
 	if string(body) == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		s.Log.Warnln("EMPTY BODY")
+		s.Log.Debugln("EMPTY BODY")
 		return
 	}
 
@@ -63,7 +63,7 @@ func (s *Srv) actUserRegister(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		s.Log.Errorln("CAN'T UNMARSHAL USER REQUEST IN REGISTER ACTION:", err)
+		s.Log.Warnln("CAN'T UNMARSHAL USER REQUEST IN REGISTER ACTION:", err)
 		return
 	}
 
@@ -84,7 +84,7 @@ func (s *Srv) actUserRegister(w http.ResponseWriter, r *http.Request) {
 		}
 
 		w.WriteHeader(http.StatusInternalServerError)
-		s.Log.Warnln("CAN'T GET PERSON BY CREDENTIAL:", err)
+		s.Log.Warnln("CAN'T CREATE PERSON BY CREDENTIAL:", err)
 		return
 	}
 
@@ -94,6 +94,8 @@ func (s *Srv) actUserRegister(w http.ResponseWriter, r *http.Request) {
 		s.Log.Errorln("CAN'T CREATE JWT FOR USER:", person.ID)
 		return
 	}
+
+	s.Log.Debugln(fmt.Sprintf("PERSON WAS CREATE id=%d,login=%s", person.ID, person.Login))
 
 	http.SetCookie(w, &http.Cookie{
 		Name:    "token",
@@ -176,6 +178,10 @@ func (s *Srv) actAcctDebit(w http.ResponseWriter, r *http.Request) {
 
 func (s *Srv) actAcctStatement(w http.ResponseWriter, r *http.Request) {
 
+}
+
+func (s *Srv) actTest(w http.ResponseWriter, r *http.Request) {
+	s.Log.Infoln("GO")
 }
 func NewServer(log logger.Lg, serv service.StorageService, jwt IJwtService) (*Srv, error) {
 	return &Srv{

@@ -19,8 +19,8 @@ type Config struct {
 func (s *Config) ParseFlags() {
 	flag.StringVar(&s.BndAdr, "a", "localhost:8080", "host where server is run")
 	flag.StringVar(&s.DSN, "d", "", "database dsn")
-	flag.StringVar(&s.DSN, "k", "", "Secret key for JWT")
-	flag.StringVar(&s.DSN, "kt", "", "Time secret key in minutes")
+	flag.StringVar(&s.SecretKey, "k", "", "Secret key for JWT")
+	flag.DurationVar(&s.SecretKeyTime, "kt", 30, "Time secret key in minutes")
 }
 
 func (s *Config) ParseEnv() {
@@ -50,6 +50,7 @@ func (s *Config) ParseEnv() {
 func NewConf() Config {
 	c := Config{}
 	c.ParseFlags()
+	flag.Parse()
 	c.ParseEnv()
 	return c
 }

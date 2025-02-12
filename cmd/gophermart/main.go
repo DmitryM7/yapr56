@@ -24,7 +24,8 @@ func run() error {
 
 	logger := logger.NewLg()
 
-	logger.Infoln("START...")
+	logger.Infoln("READY...")
+	logger.Infoln(fmt.Sprintf("Config: %#v", config))
 
 	service, err := service.NewStorageService(logger, config.DSN)
 
@@ -43,9 +44,9 @@ func run() error {
 		ReadTimeout:  30 * time.Second,
 	}
 
+	logger.Infoln("START...")
 	if errServ := server.ListenAndServe(); errServ != nil {
 		return fmt.Errorf("CAN'T EXECUTE SERVER [%w]", errServ)
 	}
-
 	return nil
 }

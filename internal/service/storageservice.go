@@ -10,6 +10,7 @@ import (
 	"github.com/DmitryM7/yapr56.git/internal/models"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 var (
@@ -64,7 +65,9 @@ func (s *StorageService) GetPesonByCredential(ctx context.Context, login, pass s
 }
 
 func (s *StorageService) CreatePeson(ctx context.Context, p models.Person) (models.Person, error) {
-	result, err := s.db.ExecContext(ctx, `INSERT INTO person (login,pass) VALUES($1,$2)`, p.Login, p.Pass)
+	var personID int
+
+	err := s.db.QueryRowContext(ctx, `INSERT INTO person (login,pass) VALUES($1,$2) RETURNING id`, p.Login, p.Pass).Scan(&personID)
 
 	if err != nil {
 		var perr *pgconn.PgError
@@ -76,15 +79,9 @@ func (s *StorageService) CreatePeson(ctx context.Context, p models.Person) (mode
 		return models.Person{}, fmt.Errorf("CAN'T CREATE PERSON [%w]", err)
 	}
 
-	personID, err := result.LastInsertId()
+	p.ID = uint(personID)
 
-	if err != nil {
-		return models.Person{}, fmt.Errorf("CAN'T READ CREATE PERSON RESULT [%w]", err)
-	}
-
-	return models.Person{
-		ID: uint(personID),
-	}, nil
+	return p, nil
 }
 
 func NewStorageService(log logger.Lg, dsn string) (StorageService, error) {
