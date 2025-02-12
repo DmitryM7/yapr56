@@ -15,7 +15,7 @@ import (
 
 func main() {
 	if err := run(); err != nil {
-		log.Panicln("CAN'T RUN MAIN PROCEDURE")
+		log.Panicln("CAN'T RUN MAIN PROCEDURE:", err)
 	}
 }
 
