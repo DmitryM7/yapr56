@@ -20,14 +20,13 @@ func main() {
 }
 
 func run() error {
-
 	config := conf.NewConf()
 
 	logger := logger.NewLg()
 
 	logger.Infoln("START...")
 
-	service, err := service.NewService(logger)
+	service, err := service.NewStorageService(logger, config.DSN)
 
 	if err != nil {
 		return err

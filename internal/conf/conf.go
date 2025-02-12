@@ -44,7 +44,6 @@ func (s *Config) ParseEnv() {
 		} else {
 			s.SecretKeyTime = time.Duration(defaultSecretKeyTime) * time.Minute
 		}
-
 	}
 }
 

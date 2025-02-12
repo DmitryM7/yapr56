@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS person (
     crdt  TIMESTAMP,
     updt TIMESTAMP
 );
-CREATE UNIQUE INDEX idx_login_pass ON person (login,pass,status);
+CREATE UNIQUE INDEX idx_person_login ON person (login);
 -- +goose Down
 -- +goose StatementBegin
 DROP TABLE person;

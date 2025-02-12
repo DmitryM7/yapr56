@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,7 +23,7 @@ type (
 
 	Srv struct {
 		Log        logger.Lg
-		Service    service.Service
+		Service    service.StorageService
 		JwtService IJwtService
 	}
 )
@@ -71,7 +72,9 @@ func (s *Srv) actUserRegister(w http.ResponseWriter, r *http.Request) {
 		Pass:  request.Password,
 	}
 
-	person, err = s.Service.CreatePeson(person)
+	ctx := context.TODO()
+
+	person, err = s.Service.CreatePeson(ctx, person)
 
 	if err != nil {
 		if errors.Is(err, service.ErrUserExists) {
@@ -99,7 +102,6 @@ func (s *Srv) actUserRegister(w http.ResponseWriter, r *http.Request) {
 	})
 
 	w.WriteHeader(http.StatusOK)
-
 }
 func (s *Srv) actUserLogin(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
@@ -126,10 +128,10 @@ func (s *Srv) actUserLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	person, err := s.Service.GetPesonByCredential(p.Login, p.Password)
+	ctx := context.TODO()
+	person, err := s.Service.GetPesonByCredential(ctx, p.Login, p.Password)
 
 	if err != nil {
-
 		if errors.Is(err, service.ErrUserCredentialInvalid) {
 			w.WriteHeader(http.StatusUnauthorized)
 			s.Log.Infoln("INVALID USER NAME OR PASS:", p.Login)
@@ -155,7 +157,6 @@ func (s *Srv) actUserLogin(w http.ResponseWriter, r *http.Request) {
 	})
 
 	w.WriteHeader(http.StatusOK)
-
 }
 func (s *Srv) actOrdersUpload(w http.ResponseWriter, r *http.Request) {
 
@@ -176,12 +177,10 @@ func (s *Srv) actAcctDebit(w http.ResponseWriter, r *http.Request) {
 func (s *Srv) actAcctStatement(w http.ResponseWriter, r *http.Request) {
 
 }
-func NewServer(log logger.Lg, serv service.Service, jwt IJwtService) (*Srv, error) {
-
+func NewServer(log logger.Lg, serv service.StorageService, jwt IJwtService) (*Srv, error) {
 	return &Srv{
 		Log:        log,
 		Service:    serv,
 		JwtService: jwt,
 	}, nil
-
 }
