@@ -5,7 +5,7 @@ SELECT 'up SQL query';
 CREATE TABLE IF NOT EXISTS person (
     id SERIAL PRIMARY KEY,
     login VARCHAR(255),
-    pass VARCHAR(255),
+    password VARCHAR(255),
     fullname VARCHAR(255),
     surname VARCHAR(255),
     name VARCHAR(255),

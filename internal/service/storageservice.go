@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/DmitryM7/yapr56.git/internal/logger"
 	"github.com/DmitryM7/yapr56.git/internal/models"
@@ -44,15 +45,22 @@ func (s *StorageService) GetPesonByCredential(ctx context.Context, login, pass s
 
 	row := s.db.QueryRowContext(ctx, "SELECT * FROM person WHERE login=$1 AND password=$2", login, pass)
 
+	var fullname, surname, name, status sql.NullString
+
 	err := row.Scan(&person.ID,
 		&person.Login,
 		&person.Pass,
-		&person.Fullname,
-		&person.Surname,
-		&person.Name,
-		&person.Status,
+		&fullname,
+		&surname,
+		&name,
+		&status,
 		&person.Crdt,
 		&person.Updt)
+
+	person.Fullname = fullname.String
+	person.Surname = surname.String
+	person.Name = name.String
+	person.Status = status.String
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -65,9 +73,16 @@ func (s *StorageService) GetPesonByCredential(ctx context.Context, login, pass s
 }
 
 func (s *StorageService) CreatePeson(ctx context.Context, p models.Person) (models.Person, error) {
-	var personID int
+	var (
+		personID     int
+		currDateTime time.Time = time.Now()
+	)
 
-	err := s.db.QueryRowContext(ctx, `INSERT INTO person (login,pass) VALUES($1,$2) RETURNING id`, p.Login, p.Pass).Scan(&personID)
+	err := s.db.QueryRowContext(ctx, `INSERT INTO person (login,password,crdt,updt) VALUES($1,$2,$3,$4) RETURNING id`,
+		p.Login,
+		p.Pass,
+		currDateTime,
+		currDateTime).Scan(&personID)
 
 	if err != nil {
 		var perr *pgconn.PgError
