@@ -1,27 +1,28 @@
 -- +goose Up
 -- +goose StatementBegin
-CREATE TABLE order (
+CREATE TABLE IF NOT EXISTS porder (
     id SERIAL PRIMARY KEY,
-    extnum INT(11),
-    crdt DATETIME,
-    updt DATETIME
-)
+    extnum INTEGER,
+    crdt TIMESTAMP,
+    updt TIMESTAMP
+);
 
-CREATE UNIQUE INDEX idx_extnum ON order INCLUDE extnum
+CREATE UNIQUE INDEX idx_extnum ON porder (extnum);
 
-CREATE TABLE request (
+CREATE TABLE IF NOT EXISTS request (
     id SERIAL PRIMARY KEY,
-    pid INT(11),
-    out TEXT,
-    in TEXT,
-    crdt DATETIME,
-    updt DATETIME
-)
+    pid INTEGER,
+    outtext TEXT,
+    intext TEXT,
+    crdt TIMESTAMP,
+    updt TIMESTAMP
+);
 
-CREATE INDEX idx_pid ON request INCLUDE pid
+CREATE INDEX idx_request_pid ON request (pid);
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
-SELECT 'down SQL query';
+DROP TABLE porder;
+DROP TABLE request;
 -- +goose StatementEnd

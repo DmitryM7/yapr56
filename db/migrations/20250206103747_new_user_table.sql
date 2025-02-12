@@ -2,7 +2,7 @@
 -- +goose StatementBegin
 SELECT 'up SQL query';
 -- +goose StatementEnd
-CREATE TABLE person (
+CREATE TABLE IF NOT EXISTS person (
     id SERIAL PRIMARY KEY,
     login VARCHAR(255),
     pass VARCHAR(255),
@@ -10,11 +10,11 @@ CREATE TABLE person (
     surname VARCHAR(255),
     name VARCHAR(255),
     status VARCHAR(20),
-    crdt  DATETIME,
-    updt DATETIME
-)
-CREATE UNIQUE INDEX idx_login_pass ON person INCLUDE (login,pass,status)
+    crdt  TIMESTAMP,
+    updt TIMESTAMP
+);
+CREATE UNIQUE INDEX idx_login_pass ON person (login,pass,status);
 -- +goose Down
 -- +goose StatementBegin
-DROP TABLE person
+DROP TABLE person;
 -- +goose StatementEnd

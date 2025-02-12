@@ -1,45 +1,45 @@
 -- +goose Up
 -- +goose StatementBegin
-CREATE TABLE acct (
+CREATE TABLE IF NOT EXISTS acct (
     id SERIAL PRIMARY KEY,
     acct VARCHAR(20),
-    pid INT(11),
+    pid INTEGER,
     sign VARCHAR(6),
-    crdt DATETIME,
-    updt DATETIME
-)
+    crdt TIMESTAMP,
+    updt TIMESTAMP
+);
 
-CREATE INDEX idx_pid ON acct INCLUDE(pid)
+CREATE INDEX idx_acct_pid ON acct (pid);
 
-CREATE TABLE opentry (
+CREATE TABLE IF NOT EXISTS opentry (
     id SERIAL PRIMARY KEY,
     opdate DATE,
     acctdb VARCHAR(20),
     acctcr VARCHAR(20),
-    sum1 INT(11),
-    sum2 INT(11),    
-    crdt DATETIME,
-    updt DATETIME
-)
+    sum1 INTEGER,
+    sum2 INTEGER,    
+    crdt TIMESTAMP,
+    updt TIMESTAMP
+);
 
-CREATE INDEX idx_opdate_acctdb ON opentry INCLUDE (opdate,acctdb)
-CREATE INDEX idx_opdate_acctcr ON opentry INCLUDE (opdate,acctcr)
+CREATE INDEX idx_opdate_acctdb ON opentry (opdate,acctdb);
+CREATE INDEX idx_opdate_acctcr ON opentry (opdate,acctcr);
 
 
-CREATE TABLE acctbal (
+CREATE TABLE IF NOT EXISTS acctbal (
     id SERIAL PRIMARY KEY,
     opdate DATE,
     acct VARCHAR(20),
-    balance INT(11)
-)
+    balance INTEGER
+);
 
-CREATE INDEX idx_opdate_acct ON acctbal INCLUDE(opdate,acct)
+CREATE INDEX idx_opdate_acct ON acctbal (opdate,acct);
 -- +goose StatementEnd
 
 -- +goose Down
 -- +goose StatementBegin
-DROP TABLE acct
-DROP TABLE opentry
-DROP TABLE acctbal
+DROP TABLE acct;
+DROP TABLE opentry;
+DROP TABLE acctbal;
 
 -- +goose StatementEnd
