@@ -6,7 +6,7 @@ import (
 	"github.com/go-chi/chi"
 )
 
-func NewRouter(log logger.Lg, serv service.StorageService, jwt IJwtService) *chi.Mux {
+func NewRouter(log logger.Lg, serv *service.StorageService, jwt IJwtService) *chi.Mux {
 	R := chi.NewRouter()
 	server, err := NewServer(log, serv, jwt)
 

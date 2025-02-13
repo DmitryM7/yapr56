@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/DmitryM7/yapr56.git/internal/logger"
@@ -21,16 +22,53 @@ type (
 		TokenExpired() time.Duration
 	}
 
-	Srv struct {
-		Log        logger.Lg
-		Service    service.StorageService
-		JwtService IJwtService
+	IStorage interface {
+		GetPesonByCredential(ctx context.Context, login, pass string) (models.Person, error)
+		CreatePeson(ctx context.Context, p models.Person) (models.Person, error)
+		CreateOrder(ctx context.Context, p models.Person, order models.POrder) (models.POrder, error)
+		GetOrder(ctx context.Context, order models.POrder) (models.POrder, error)
+		GetPersonByID(ctx context.Context, id int) (models.Person, error)
 	}
+
+	Srv struct {
+		Log           logger.Lg
+		Service       IStorage
+		JwtService    IJwtService
+		NoAuthActions map[string]string
+	}
+
+	contextParam string
 )
 
 func (s *Srv) actMiddleWare(next http.Handler) http.Handler {
 	f := func(w http.ResponseWriter, r *http.Request) {
-		next.ServeHTTP(w, r)
+
+		ctx := r.Context()
+
+		s.Log.Debugln("URL PATH IS:", r.URL.Path)
+
+		if _, e := s.NoAuthActions[r.URL.Path]; !e {
+			cookie, err := r.Cookie("token")
+
+			if err != nil {
+				s.Log.Debugln("CAN'T READ COOKIE:", err)
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+
+			personId, err := s.JwtService.UnloadUserIDJwt(cookie.Value)
+
+			if err != nil {
+				s.Log.Debugln("CAN'T UNLOAD ID FROM JWT:", err)
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+
+			ctx = context.WithValue(ctx, contextParam("CurrPersonID"), personId)
+
+		}
+
+		next.ServeHTTP(w, r.WithContext(ctx))
 	}
 
 	return http.HandlerFunc(f)
@@ -162,6 +200,81 @@ func (s *Srv) actUserLogin(w http.ResponseWriter, r *http.Request) {
 }
 func (s *Srv) actOrdersUpload(w http.ResponseWriter, r *http.Request) {
 
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		s.Log.Warnln("CAN'T READ BODY")
+		return
+	}
+
+	defer func() {
+		err := r.Body.Close()
+		if err != nil {
+			s.Log.Warnln("CAN'T CLOSE BODY")
+		}
+	}()
+
+	if string(body) == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		s.Log.Infoln("EMPTY BODY")
+		return
+	}
+
+	extNum, err := strconv.Atoi(string(body))
+
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		s.Log.Infoln("CAN'T PARSE ORDER NUMBER TO INT")
+		return
+	}
+
+	ctx := r.Context()
+
+	if currPersonId, ok := ctx.Value(contextParam("CurrPersonID")).(int); ok {
+		currPerson, err := s.Service.GetPersonByID(ctx, currPersonId)
+
+		if err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			s.Log.Infoln("CAN'T FIND PERSON WITH ID=", currPersonId)
+			return
+		}
+
+		order := models.POrder{
+			Extnum: extNum,
+		}
+
+		order, err = s.Service.CreateOrder(ctx, currPerson, order)
+
+		if err != nil {
+
+			if errors.Is(err, service.ErrNoLuhnNumber) {
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				s.Log.Errorln("INCORRECT ORDER NUMBER:", err)
+				return
+			}
+
+			if errors.Is(err, service.ErrDublicateOrder) {
+				w.WriteHeader(http.StatusOK)
+				s.Log.Errorln(err)
+				return
+			}
+
+			if errors.Is(err, service.ErrOrderExists) {
+				w.WriteHeader(http.StatusConflict)
+				s.Log.Errorln(err)
+				return
+			}
+
+			w.WriteHeader(http.StatusInternalServerError)
+			s.Log.Errorln(err)
+			return
+
+		}
+
+		w.WriteHeader(http.StatusOK)
+
+	}
+
 }
 
 func (s *Srv) actOrders(w http.ResponseWriter, r *http.Request) {
@@ -180,13 +293,18 @@ func (s *Srv) actAcctStatement(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func (s *Srv) actTest(w http.ResponseWriter, r *http.Request) {
-	s.Log.Infoln("GO")
-}
-func NewServer(log logger.Lg, serv service.StorageService, jwt IJwtService) (*Srv, error) {
+func NewServer(log logger.Lg,
+	serv *service.StorageService,
+	jwt IJwtService) (*Srv, error) {
+
+	var NoAuthActions = map[string]string{
+		"/api/user/register": "/api/user/register",
+		"/api/user/login":    "/api/user/login",
+	}
 	return &Srv{
-		Log:        log,
-		Service:    serv,
-		JwtService: jwt,
+		Log:           log,
+		Service:       serv,
+		JwtService:    jwt,
+		NoAuthActions: NoAuthActions,
 	}, nil
 }

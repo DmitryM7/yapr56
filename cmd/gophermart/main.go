@@ -35,7 +35,7 @@ func run() error {
 
 	jwt := sec.NewJwtProvider(config.SecretKeyTime, config.SecretKey)
 
-	router := controller.NewRouter(logger, service, jwt)
+	router := controller.NewRouter(logger, &service, jwt)
 
 	server := &http.Server{
 		Addr:         config.BndAdr,

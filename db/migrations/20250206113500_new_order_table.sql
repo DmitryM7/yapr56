@@ -2,12 +2,15 @@
 -- +goose StatementBegin
 CREATE TABLE IF NOT EXISTS porder (
     id SERIAL PRIMARY KEY,
-    extnum INTEGER,
+    pid INTEGER,
+    extnum NUMERIC(20,0),
+    status VARCHAR(255),
     crdt TIMESTAMP,
     updt TIMESTAMP
 );
 
 CREATE UNIQUE INDEX idx_extnum ON porder (extnum);
+CREATE INDEX idx_pid_status ON porder (pid,crdt,status);
 
 CREATE TABLE IF NOT EXISTS request (
     id SERIAL PRIMARY KEY,

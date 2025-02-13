@@ -13,3 +13,7 @@ type Person struct {
 	Crdt     time.Time
 	Updt     time.Time
 }
+
+func (p *Person) GetID() uint {
+	return p.ID
+}
