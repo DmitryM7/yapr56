@@ -28,6 +28,7 @@ type (
 		CreateOrder(ctx context.Context, p models.Person, order models.POrder) (models.POrder, error)
 		GetOrder(ctx context.Context, order models.POrder) (models.POrder, error)
 		GetPersonByID(ctx context.Context, id int) (models.Person, error)
+		GetOrders(ctx context.Context, p models.Person) ([]models.POrder, error)
 	}
 
 	Srv struct {
@@ -278,6 +279,46 @@ func (s *Srv) actOrdersUpload(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Srv) actOrders(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if currPersonId, ok := ctx.Value(contextParam("CurrPersonID")).(int); ok {
+		person := models.Person{
+			ID: uint(currPersonId),
+		}
+
+		orders, err := s.Service.GetOrders(ctx, person)
+
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			s.Log.Warnln("CAN'T GET ORDER LIST:", err)
+			return
+		}
+
+		if len(orders) == 0 {
+			w.WriteHeader(http.StatusNoContent)
+			s.Log.Infoln("ORDER LIST EMPTY")
+			return
+		}
+
+		result, err := json.Marshal(orders)
+
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			s.Log.Warnln("CAN'T MARSHAL ORDER LIST", err)
+			return
+		}
+
+		s.Log.Infoln(orders)
+
+		w.WriteHeader(http.StatusOK)
+		_, err = w.Write(result)
+
+		if err != nil {
+			s.Log.Warnln("CAN'T WRITE BODY IN ORDER LIST", err)
+			return
+		}
+
+	}
 
 }
 

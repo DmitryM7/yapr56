@@ -27,6 +27,13 @@ type StorageService struct {
 	DatabaseDSN string
 }
 
+const (
+	StatusNew        = "NEW"
+	StatusProcessing = "PROCESSING"
+	Invalid          = "INVALID"
+	Processed        = "PROCESSED"
+)
+
 func (s *StorageService) connect() error {
 	db, err := sql.Open("pgx", s.DatabaseDSN)
 
@@ -158,6 +165,8 @@ func (s *StorageService) CreateOrder(ctx context.Context, p models.Person, order
 		return order, fmt.Errorf("NO VALID LUHN [%w]", err)
 	}
 
+	order.Status = StatusNew
+
 	order.Pid = p.GetID()
 	order.Crdt = time.Now()
 	order.Updt = order.Crdt
@@ -211,6 +220,43 @@ func (s *StorageService) GetOrder(ctx context.Context, order models.POrder) (mod
 
 	return order, nil
 
+}
+
+func (s *StorageService) GetOrders(ctx context.Context, p models.Person) ([]models.POrder, error) {
+
+	var status sql.NullString
+
+	result := []models.POrder{}
+
+	rows, err := s.db.QueryContext(ctx, `SELECT id,pid,extnum,status,crdt,updt 
+										 FROM porder 
+										 WHERE pid=$1 
+										ORDER BY crdt DESC`, p.GetID())
+
+	if err != nil {
+		return result, fmt.Errorf("CAN'T GET ORDERS [%w]", err)
+	}
+
+	order := models.POrder{}
+
+	for rows.Next() {
+
+		err := rows.Scan(&order.ID,
+			&order.Pid,
+			&order.Extnum,
+			&status,
+			&order.Crdt,
+			&order.Updt)
+		order.Status = status.String
+
+		if err != nil {
+			return result, err
+		}
+
+		result = append(result, order)
+
+	}
+	return result, nil
 }
 
 func (s *StorageService) GetPersonByID(ctx context.Context, id int) (models.Person, error) {
