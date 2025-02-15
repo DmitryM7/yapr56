@@ -29,6 +29,7 @@ type (
 		GetOrder(ctx context.Context, order models.POrder) (models.POrder, error)
 		GetPersonByID(ctx context.Context, id int) (models.Person, error)
 		GetOrders(ctx context.Context, p models.Person) ([]models.POrder, error)
+		GetBalance(ctx context.Context, p models.Person) (int, error)
 	}
 
 	Srv struct {
@@ -323,6 +324,16 @@ func (s *Srv) actOrders(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Srv) actAcctBalance(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	_, ok := ctx.Value(contextParam("CurrPersonID")).(int)
+
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		s.Log.Warnln("INVALID PERSON ID")
+		return
+	}
 
 }
 

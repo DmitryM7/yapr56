@@ -129,12 +129,18 @@ func (s *StorageService) GetPesonByCredential(ctx context.Context, login, pass s
 }
 
 func (s *StorageService) CreatePeson(ctx context.Context, p models.Person) (models.Person, error) {
-	var personID int
+	var personID, acctID, acctSerial int
 
 	p.Crdt = time.Now()
 	p.Updt = p.Crdt
 
-	err := s.db.QueryRowContext(ctx, `INSERT INTO person (login,password,crdt,updt) VALUES($1,$2,$3,$4) RETURNING id`,
+	tx, err := s.db.Begin()
+
+	if err != nil {
+		return p, fmt.Errorf("CAN'T OPEN TRANSACT: [%v]", err)
+	}
+
+	err = tx.QueryRowContext(ctx, `INSERT INTO person (login,password,crdt,updt) VALUES($1,$2,$3,$4) RETURNING id`,
 		p.Login,
 		p.Pass,
 		p.Crdt,
@@ -144,13 +150,44 @@ func (s *StorageService) CreatePeson(ctx context.Context, p models.Person) (mode
 		var perr *pgconn.PgError
 
 		if errors.As(err, &perr) && perr.Code == pgerrcode.UniqueViolation {
+			tx.Rollback()
 			return p, ErrUserExists
 		}
+
+		tx.Rollback()
+
+		return models.Person{}, fmt.Errorf("CAN'T CREATE PERSON [%w]", err)
+	}
+
+	err = tx.QueryRowContext(ctx, `SELECT nextval('acctserial')`).Scan(&acctSerial)
+
+	if err != nil {
+		tx.Rollback()
+		return models.Person{}, fmt.Errorf("CAN'T ACCT SEQUENCE VALUE [%w]", err)
+	}
+	fmt.Println("SEQ:", acctSerial)
+	err = tx.QueryRowContext(ctx, `INSERT INTO acct (acct,person,sign,crdt,updt) VALUES($1,$2,'П',$3,$4) RETURNING id`,
+		`408178101`+fmt.Sprintf("%011d", acctSerial),
+		personID,
+		p.Crdt,
+		p.Updt).Scan(&acctID)
+
+	if err != nil {
+		var perr *pgconn.PgError
+
+		if errors.As(err, &perr) && perr.Code == pgerrcode.UniqueViolation {
+			tx.Rollback()
+			return p, ErrUserExists
+		}
+
+		tx.Rollback()
 
 		return models.Person{}, fmt.Errorf("CAN'T CREATE PERSON [%w]", err)
 	}
 
 	p.ID = uint(personID)
+
+	tx.Commit()
 
 	return p, nil
 }
@@ -171,6 +208,10 @@ func (s *StorageService) CreateOrder(ctx context.Context, p models.Person, order
 	order.Crdt = time.Now()
 	order.Updt = order.Crdt
 
+	if err != nil {
+		return order, fmt.Errorf("CAN'T OPEN TX [%w]", err)
+	}
+
 	err = s.db.QueryRowContext(ctx, `INSERT INTO porder (pid,extnum,crdt,updt) VALUES($1,$2,$3,$4) RETURNING id`,
 		order.Pid,
 		order.Extnum,
@@ -178,6 +219,7 @@ func (s *StorageService) CreateOrder(ctx context.Context, p models.Person, order
 		order.Updt).Scan(&orderID)
 
 	if err != nil {
+
 		var perr *pgconn.PgError
 
 		if errors.As(err, &perr) && perr.Code != pgerrcode.UniqueViolation {
@@ -228,7 +270,7 @@ func (s *StorageService) GetOrders(ctx context.Context, p models.Person) ([]mode
 
 	result := []models.POrder{}
 
-	rows, err := s.db.QueryContext(ctx, `SELECT id,pid,extnum,status,crdt,updt 
+	rows, err := s.db.QueryContext(ctx, `SELECT id,pid,extnum,status,accrual,crdt,updt 
 										 FROM porder 
 										 WHERE pid=$1 
 										ORDER BY crdt DESC`, p.GetID())
@@ -245,6 +287,7 @@ func (s *StorageService) GetOrders(ctx context.Context, p models.Person) ([]mode
 			&order.Pid,
 			&order.Extnum,
 			&status,
+			&order.Accrual,
 			&order.Crdt,
 			&order.Updt)
 		order.Status = status.String
@@ -290,6 +333,110 @@ func (s *StorageService) GetPersonByID(ctx context.Context, id int) (models.Pers
 
 	return person, nil
 }
+
+func (s *StorageService) calcBalanceByAcct(ctx context.Context, acct models.Acct) (int, error) {
+
+	row := s.db.QueryRowContext(ctx, `SELECT acctbal 
+	                                  FROM acct 
+									  WHERE acct=$1 AND opdate>$2
+									  ORDER BY opdate DESC LIMIT 1`,
+		acct.Acct,
+		acct.Crdt)
+
+	acctbal := models.AcctBal{}
+
+	err := row.Scan(
+		&acctbal.ID,
+		&acctbal.Person,
+		&acctbal.Opdate,
+		&acctbal.Acct,
+		&acctbal.Balance)
+
+	baseBalance := 0
+
+	if err != nil {
+		if err != sql.ErrNoRows {
+			return 0, fmt.Errorf("CAN'T READ ACCTBAL INFO [%v]", err)
+		}
+	} else {
+		baseBalance += acctbal.Balance
+	}
+
+	rows, err := s.db.QueryContext(ctx, `SELECT *
+	                                  FROM  opentry
+									  WHERE acctdb=$1 
+									  AND opdate>=$2
+									  `,
+		acct.Acct,
+		acctbal.Opdate)
+
+	if err != nil {
+		return 0, fmt.Errorf("CAN'T READ OPENTRY BY CR INFO [%v]", err)
+	}
+
+	for rows.Next() {
+		opentry := models.Opentry{}
+
+		if acct.Sign == "А" {
+			baseBalance += opentry.Sum1
+		} else if acct.Sign == "П" {
+			baseBalance -= opentry.Sum1
+		}
+	}
+
+	rows, err = s.db.QueryContext(ctx, `SELECT *
+	                                  FROM  opentry
+									  WHERE acctcr=$1 
+									  AND opdate>=$2
+									  `,
+		acct.Acct,
+		acctbal.Opdate)
+
+	if err != nil {
+		return 0, fmt.Errorf("CAN'T READ OPENTRY BY DB INFO [%v]", err)
+	}
+
+	for rows.Next() {
+		opentry := models.Opentry{}
+
+		if acct.Sign == "А" {
+			baseBalance -= opentry.Sum1
+		} else if acct.Sign == "П" {
+			baseBalance += opentry.Sum1
+		}
+	}
+
+	return baseBalance, nil
+}
+
+func (s *StorageService) GetBalance(ctx context.Context, p models.Person) (int, error) {
+	/* Находим все счета пользователя */
+	rows, err := s.db.QueryContext(ctx, "SELECT * FROM acct WHERE person=$1", p.GetID())
+
+	if err != nil {
+		return 0, fmt.Errorf("CAN'T FIND PERSON acct [%v]", err)
+	}
+
+	b := 0
+
+	for rows.Next() {
+		var status, sign sql.NullString
+		acct := models.Acct{}
+		err := rows.Scan(&acct.ID, &acct.Acct, &acct.Person, &acct.Crdt, &acct.Updt)
+		acct.Status = status.String
+		acct.Sign = sign.String
+
+		if err != nil {
+			return 0, fmt.Errorf("CAN'T CREATE ACCT STRUCT [%v]", err)
+		}
+
+		if b0, err := s.calcBalanceByAcct(ctx, acct); err == nil {
+			b += b0
+		}
+	}
+	return b, nil
+}
+
 func NewStorageService(log logger.Lg, dsn string) (StorageService, error) {
 	s := StorageService{
 		DatabaseDSN: dsn,

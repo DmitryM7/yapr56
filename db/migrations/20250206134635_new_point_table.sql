@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS acct (
     updt TIMESTAMP
 );
 
-CREATE INDEX idx_acct_pid ON acct (pid);
+CREATE INDEX idx_acct_person ON acct (person);
 
 CREATE TABLE IF NOT EXISTS opentry (
     id SERIAL PRIMARY KEY,
@@ -26,8 +26,8 @@ CREATE TABLE IF NOT EXISTS opentry (
     updt TIMESTAMP
 );
 
-CREATE INDEX idx_opdate_acctdb ON opentry (opdate,acctdb);
-CREATE INDEX idx_opdate_acctcr ON opentry (opdate,acctcr);
+CREATE INDEX idx_acctdb_opdate ON opentry (acctdb,opdate);
+CREATE INDEX idx_acctcr_opdate ON opentry (acctcr,opdate);
 
 
 CREATE TABLE IF NOT EXISTS acctbal (
@@ -38,7 +38,9 @@ CREATE TABLE IF NOT EXISTS acctbal (
     balance INTEGER    
 );
 
-CREATE INDEX idx_opdate_acct ON acctbal (opdate,acct);
+CREATE INDEX idx_opdate_acct ON acctbal (acct,opdate);
+
+CREATE SEQUENCE acctserial START 1;
 -- +goose StatementEnd
 
 -- +goose Down
