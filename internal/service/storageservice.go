@@ -208,10 +208,6 @@ func (s *StorageService) CreateOrder(ctx context.Context, p models.Person, order
 	order.Crdt = time.Now()
 	order.Updt = order.Crdt
 
-	if err != nil {
-		return order, fmt.Errorf("CAN'T OPEN TX [%w]", err)
-	}
-
 	err = s.db.QueryRowContext(ctx, `INSERT INTO porder (pid,extnum,crdt,updt) VALUES($1,$2,$3,$4) RETURNING id`,
 		order.Pid,
 		order.Extnum,
