@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS acctbal (
 
 CREATE INDEX idx_opdate_acct ON acctbal (acct,opdate);
 
-CREATE SEQUENCE acctserial START 1;
+CREATE SEQUENCE IF NOT EXISTS acctserial START 1;
 -- +goose StatementEnd
 
 -- +goose Down
@@ -48,5 +48,6 @@ CREATE SEQUENCE acctserial START 1;
 DROP TABLE acct;
 DROP TABLE opentry;
 DROP TABLE acctbal;
+DROP SEQUENCE acctserial;
 
 -- +goose StatementEnd

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"database/sql"
+	"embed"
 	"errors"
 	"fmt"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/pressly/goose/v3"
 )
 
 var (
@@ -20,6 +22,8 @@ var (
 	ErrNoLuhnNumber          = errors.New("LUHN CHECKSUMM ERROR")
 	ErrOrderExists           = errors.New("ORDER WITH NUMBER EXISTS")
 	ErrDublicateOrder        = errors.New("DUBLICATE ORDER")
+	//go:embed migrations/*.sql
+	embedMigrations embed.FS
 )
 
 type StorageService struct {
@@ -433,6 +437,17 @@ func (s *StorageService) GetBalance(ctx context.Context, p models.Person) (int, 
 	return b, nil
 }
 
+func (s *StorageService) RunMigrations() error {
+
+	goose.SetBaseFS(embedMigrations)
+	goose.SetDialect("postgres")
+
+	if err := goose.Up(s.db, "migrations"); err != nil {
+		return err
+	}
+	return nil
+}
+
 func NewStorageService(log logger.Lg, dsn string) (StorageService, error) {
 	s := StorageService{
 		DatabaseDSN: dsn,
@@ -440,6 +455,12 @@ func NewStorageService(log logger.Lg, dsn string) (StorageService, error) {
 
 	if err := s.connect(); err != nil {
 		return s, fmt.Errorf("CAN'T CONNECT TO DB [%w]", err)
+	}
+
+	err := s.RunMigrations()
+
+	if err != nil {
+		log.Panicln(err)
 	}
 
 	return s, nil

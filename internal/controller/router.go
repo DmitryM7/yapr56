@@ -2,11 +2,10 @@ package controller
 
 import (
 	"github.com/DmitryM7/yapr56.git/internal/logger"
-	"github.com/DmitryM7/yapr56.git/internal/service"
 	"github.com/go-chi/chi"
 )
 
-func NewRouter(log logger.Lg, serv *service.StorageService, jwt IJwtService) *chi.Mux {
+func NewRouter(log logger.Lg, serv IStorage, jwt IJwtService) *chi.Mux {
 	R := chi.NewRouter()
 	server, err := NewServer(log, serv, jwt)
 

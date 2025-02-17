@@ -346,7 +346,7 @@ func (s *Srv) actAcctStatement(w http.ResponseWriter, r *http.Request) {
 }
 
 func NewServer(log logger.Lg,
-	serv *service.StorageService,
+	serv IStorage,
 	jwt IJwtService) (*Srv, error) {
 
 	var NoAuthActions = map[string]string{
