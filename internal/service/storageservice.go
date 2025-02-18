@@ -22,6 +22,7 @@ var (
 	ErrNoLuhnNumber          = errors.New("LUHN CHECKSUMM ERROR")
 	ErrOrderExists           = errors.New("ORDER WITH NUMBER EXISTS")
 	ErrDublicateOrder        = errors.New("DUBLICATE ORDER")
+	ErrNoFixedBalance        = errors.New("NO FIXED BALANCE YET")
 	//go:embed migrations/*.sql
 	embedMigrations embed.FS
 )
@@ -334,9 +335,122 @@ func (s *StorageService) GetPersonByID(ctx context.Context, id int) (models.Pers
 	return person, nil
 }
 
-func (s *StorageService) calcBalanceByAcct(ctx context.Context, acct models.Acct) (int, error) {
+func (s *StorageService) getMoveByDb(ctx context.Context, acct string, opdate time.Time) ([]models.Opentry, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id,
+    											person,
+    											porder,
+    											status,
+    											opdate,
+    											acctdb,
+    											acctcr,
+    											sum1,
+    											sum2,    
+    											crdt,
+    											updt
+	FROM  opentry
+	WHERE acctdb=$1 
+	AND opdate>=$2`,
+		acct,
+		opdate)
 
-	row := s.db.QueryRowContext(ctx, `SELECT acctbal 
+	if err != nil {
+		return nil, fmt.Errorf("CAN'T READ OPENTRY BY DB: [%v]", err)
+	}
+
+	res := make([]models.Opentry, 10)
+	var status sql.NullString
+
+	for rows.Next() {
+		opentry := models.Opentry{}
+		err := rows.Scan(
+			&opentry.ID,
+			&opentry.Person,
+			&opentry.Porder,
+			&status,
+			&opentry.Opdate,
+			&opentry.Acctdb,
+			&opentry.Acctcr,
+			&opentry.Sum1,
+			&opentry.Sum2,
+			&opentry.Crdt,
+			&opentry.Updt)
+
+		opentry.Status = status.String
+
+		if err != nil {
+			return nil, fmt.Errorf("CAN'T READ OPENTRY BY DB: [%v]", err)
+		}
+
+		res = append(res, opentry)
+
+	}
+
+	return res, nil
+}
+
+func (s *StorageService) getMoveByCr(ctx context.Context, acct string, opdate time.Time) ([]models.Opentry, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id,
+    											person,
+    											porder,
+    											status,
+    											opdate,
+    											acctdb,
+    											acctcr,
+    											sum1,
+    											sum2,    
+    											crdt,
+    											updt
+	FROM  opentry
+	WHERE acctcr=$1 
+	AND opdate>=$2`,
+		acct,
+		opdate)
+
+	if err != nil {
+		return nil, fmt.Errorf("CAN'T READ OPENTRY BY CR: [%v]", err)
+	}
+
+	res := make([]models.Opentry, 10)
+	var status sql.NullString
+
+	for rows.Next() {
+		opentry := models.Opentry{}
+		err := rows.Scan(
+			&opentry.ID,
+			&opentry.Person,
+			&opentry.Porder,
+			&status,
+			&opentry.Opdate,
+			&opentry.Acctdb,
+			&opentry.Acctcr,
+			&opentry.Sum1,
+			&opentry.Sum2,
+			&opentry.Crdt,
+			&opentry.Updt)
+
+		opentry.Status = status.String
+
+		if err != nil {
+			return nil, fmt.Errorf("CAN'T READ OPENTRY BY CR: [%v]", err)
+		}
+
+		res = append(res, opentry)
+
+	}
+
+	return res, nil
+}
+
+func (s *StorageService) getLastFixBalance(ctx context.Context, acct models.Acct) (models.AcctBal, error) {
+	row := s.db.QueryRowContext(ctx, `SELECT id,
+											 person,
+											 opdate,
+											 acct,
+											 balance,
+											 db,
+											 cr,
+											 crdt,
+											 updt
 	                                  FROM acct 
 									  WHERE acct=$1 AND opdate>$2
 									  ORDER BY opdate DESC LIMIT 1`,
@@ -350,74 +464,78 @@ func (s *StorageService) calcBalanceByAcct(ctx context.Context, acct models.Acct
 		&acctbal.Person,
 		&acctbal.Opdate,
 		&acctbal.Acct,
-		&acctbal.Balance)
-
-	baseBalance := 0
+		&acctbal.Balance,
+		&acctbal.Db,
+		&acctbal.Cr,
+		&acctbal.Crdt,
+		&acctbal.Updt)
 
 	if err != nil {
 		if err != sql.ErrNoRows {
+			return models.AcctBal{}, fmt.Errorf("CAN'T READ ACCTBAL INFO [%v]", err)
+		}
+
+		return models.AcctBal{}, ErrNoFixedBalance
+	}
+
+	return acctbal, nil
+
+}
+func (s *StorageService) calcBalanceByAcct(ctx context.Context, acct models.Acct) (int, error) {
+
+	balance := 0
+
+	acctbal, err := s.getLastFixBalance(ctx, acct)
+
+	if err != nil {
+		if !errors.Is(err, ErrNoFixedBalance) {
 			return 0, fmt.Errorf("CAN'T READ ACCTBAL INFO [%v]", err)
 		}
 	} else {
-		baseBalance += acctbal.Balance
+		balance += acctbal.Balance
 	}
 
-	rows, err := s.db.QueryContext(ctx, `SELECT *
-	                                  FROM  opentry
-									  WHERE acctdb=$1 
-									  AND opdate>=$2
-									  `,
-		acct.Acct,
-		acctbal.Opdate)
+	rows, err := s.getMoveByDb(ctx, acct.Acct, acctbal.Opdate)
 
 	if err != nil {
 		return 0, fmt.Errorf("CAN'T READ OPENTRY BY CR INFO [%v]", err)
 	}
 
-	for rows.Next() {
-		opentry := models.Opentry{}
-
+	for _, opentry := range rows {
 		if acct.Sign == "А" {
-			baseBalance += opentry.Sum1
+			balance += opentry.Sum1
 		} else if acct.Sign == "П" {
-			baseBalance -= opentry.Sum1
+			balance -= opentry.Sum1
 		}
 	}
 
-	rows, err = s.db.QueryContext(ctx, `SELECT *
-	                                  FROM  opentry
-									  WHERE acctcr=$1 
-									  AND opdate>=$2
-									  `,
-		acct.Acct,
-		acctbal.Opdate)
+	rows, err = s.getMoveByCr(ctx, acct.Acct, acctbal.Opdate)
 
 	if err != nil {
 		return 0, fmt.Errorf("CAN'T READ OPENTRY BY DB INFO [%v]", err)
 	}
 
-	for rows.Next() {
-		opentry := models.Opentry{}
+	for _, opentry := range rows {
 
 		if acct.Sign == "А" {
-			baseBalance -= opentry.Sum1
+			balance -= opentry.Sum1
 		} else if acct.Sign == "П" {
-			baseBalance += opentry.Sum1
+			balance += opentry.Sum1
 		}
+
 	}
 
-	return baseBalance, nil
+	return balance, nil
 }
 
-func (s *StorageService) GetBalance(ctx context.Context, p models.Person) (int, error) {
-	/* Находим все счета пользователя */
+func (s *StorageService) getPersonAccts(ctx context.Context, p models.Person) ([]models.Acct, error) {
 	rows, err := s.db.QueryContext(ctx, "SELECT * FROM acct WHERE person=$1", p.GetID())
 
 	if err != nil {
-		return 0, fmt.Errorf("CAN'T FIND PERSON acct [%v]", err)
+		return nil, fmt.Errorf("CAN'T FIND PERSON acct [%v]", err)
 	}
 
-	b := 0
+	res := make([]models.Acct, 5)
 
 	for rows.Next() {
 		var status, sign sql.NullString
@@ -427,14 +545,112 @@ func (s *StorageService) GetBalance(ctx context.Context, p models.Person) (int, 
 		acct.Sign = sign.String
 
 		if err != nil {
-			return 0, fmt.Errorf("CAN'T CREATE ACCT STRUCT [%v]", err)
+			return nil, fmt.Errorf("CAN'T CREATE ACCT STRUCT [%v]", err)
 		}
+
+		res = append(res, acct)
+	}
+
+	return res, nil
+
+}
+
+func (s *StorageService) GetBalance(ctx context.Context, p models.Person) (int, error) {
+
+	b := 0
+
+	accts, err := s.getPersonAccts(ctx, p)
+
+	if err != nil {
+		return 0, fmt.Errorf("CAN'T FIND PERSON ACCT [%v]", err)
+	}
+
+	for _, acct := range accts {
 
 		if b0, err := s.calcBalanceByAcct(ctx, acct); err == nil {
 			b += b0
 		}
 	}
 	return b, nil
+}
+
+func (s *StorageService) Getwithdrawn(ctx context.Context, p models.Person) (int, error) {
+	b := 0
+
+	accts, err := s.getPersonAccts(ctx, p)
+
+	if err != nil {
+		return 0, fmt.Errorf("CAN'T GET PERSON ACCTS")
+	}
+
+	for _, acct := range accts {
+		fixedBalance, err := s.getLastFixBalance(ctx, acct)
+
+		if err != nil {
+			if !errors.Is(err, ErrNoFixedBalance) {
+				return 0, fmt.Errorf("CAN'T GET LAST FIXED BALANCE: [%v]", err)
+			}
+		}
+
+		if acct.Sign == "П" {
+			b += fixedBalance.Db
+			rows, err := s.getMoveByDb(ctx, acct.Acct, fixedBalance.Opdate)
+
+			if err != nil {
+				return 0, fmt.Errorf("CAN'T GET ACCT MOBY BY DB: [%v]", err)
+			}
+			for _, opentry := range rows {
+				b += opentry.Sum1
+			}
+		} else if acct.Sign == "А" {
+			b += fixedBalance.Cr
+
+			rows, err := s.getMoveByCr(ctx, acct.Acct, fixedBalance.Opdate)
+
+			if err != nil {
+				return 0, fmt.Errorf("CAN'T GET ACCT MOBY BY DB: [%v]", err)
+			}
+			for _, opentry := range rows {
+				b += opentry.Sum1
+			}
+		}
+
+	}
+
+	return b, nil
+
+}
+func (s *StorageService) GetWithdrawals(ctx context.Context, p models.Person) ([]models.Opentry, error) {
+	accts, err := s.getPersonAccts(ctx, p)
+
+	if err != nil {
+		return nil, fmt.Errorf("CAN'T FIND PERSON ACCT [%v]", err)
+	}
+
+	rows := make([]models.Opentry, 10)
+
+	for _, acct := range accts {
+		if acct.Sign == "П" {
+			r, e := s.getMoveByDb(ctx, acct.Acct, acct.Crdt)
+
+			if e != nil {
+				return nil, fmt.Errorf("ACCT IS PASSIVE AND CAN'T GET MOVE BY DB [%v]", err)
+			}
+
+			rows = append(rows, r...)
+		} else if acct.Sign == "А" {
+			r, e := s.getMoveByCr(ctx, acct.Acct, acct.Crdt)
+
+			if e != nil {
+				return nil, fmt.Errorf("ACCT IS ACTIVE AND CAN'T GET MOVE BY DB [%v]", err)
+			}
+
+			rows = append(rows, r...)
+		}
+	}
+
+	return rows, nil
+
 }
 
 func (s *StorageService) RunMigrations() error {

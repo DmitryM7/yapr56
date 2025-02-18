@@ -18,4 +18,8 @@ type AcctBal struct {
 	Opdate  time.Time
 	Acct    string
 	Balance int
+	Db      int
+	Cr      int
+	Crdt    time.Time
+	Updt    time.Time
 }

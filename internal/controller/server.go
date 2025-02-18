@@ -30,6 +30,8 @@ type (
 		GetPersonByID(ctx context.Context, id int) (models.Person, error)
 		GetOrders(ctx context.Context, p models.Person) ([]models.POrder, error)
 		GetBalance(ctx context.Context, p models.Person) (int, error)
+		Getwithdrawn(ctx context.Context, p models.Person) (int, error)
+		GetWithdrawals(ctx context.Context, p models.Person) ([]models.Opentry, error)
 	}
 
 	Srv struct {
@@ -327,13 +329,57 @@ func (s *Srv) actAcctBalance(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	_, ok := ctx.Value(contextParam("CurrPersonID")).(int)
+	currPersonId, ok := ctx.Value(contextParam("CurrPersonID")).(int)
 
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
 		s.Log.Warnln("INVALID PERSON ID")
 		return
 	}
+
+	person, err := s.Service.GetPersonByID(ctx, currPersonId)
+
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		s.Log.Warnln("INVALID PERSON ID")
+	}
+
+	balance, err := s.Service.GetBalance(ctx, person)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		s.Log.Errorln("CAN'T GET BALANCE BY PERSON:[%v]", err)
+		return
+	}
+
+	withdrawn, err := s.Service.Getwithdrawn(ctx, person)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		s.Log.Errorln("CAN'T WITHDRAWN BY PERSON:[%v]", err)
+		return
+	}
+
+	output, err := json.Marshal(BalanceResponce{
+		Current:   float32(balance),
+		Withdrawn: float32(withdrawn),
+	})
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		s.Log.Errorln("CAN'T MARSHAL DATA:[%v]", err)
+		return
+	}
+
+	_, err = w.Write(output)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		s.Log.Errorln("CAN'T WRITE DATA TO BODY:[%v]", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 
 }
 
@@ -342,7 +388,66 @@ func (s *Srv) actAcctDebit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Srv) actAcctStatement(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 
+	currPersonId, ok := ctx.Value(contextParam("CurrPersonID")).(int)
+
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		s.Log.Warnln("INVALID PERSON ID")
+		return
+	}
+
+	person, err := s.Service.GetPersonByID(ctx, currPersonId)
+
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		s.Log.Warnln("INVALID PERSON ID")
+	}
+
+	rows, err := s.Service.GetWithdrawals(ctx, person)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		s.Log.Warnln("CAN'T GET STATMENT: [%v]", err)
+		return
+
+	}
+
+	if len(rows) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		s.Log.Warnln("STATMENT IS EMPTY")
+		return
+	}
+
+	res := make([]WithdrawalsResponce, 10)
+
+	for _, opentry := range rows {
+		wr := WithdrawalsResponce{
+			Order:       opentry.Porder,
+			Sum:         opentry.Sum1,
+			ProcessedAt: opentry.Crdt,
+		}
+		res = append(res, wr)
+	}
+
+	output, err := json.Marshal(res)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		s.Log.Warnln("CAN'T MARSHAL RESPONCE: [%v]", err)
+		return
+	}
+
+	_, err = w.Write(output)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		s.Log.Errorln("CAN'T WRITE DATA TO BODY:[%v]", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
 }
 
 func NewServer(log logger.Lg,

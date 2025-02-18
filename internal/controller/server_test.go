@@ -34,6 +34,7 @@ func TestSrv_actUserRegister(t *testing.T) {
 		r      *http.Request
 		person UserRegisterRequest
 		method string
+		moc    *mocks.MockIStorage
 	}
 
 	type want struct {

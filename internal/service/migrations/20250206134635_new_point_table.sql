@@ -35,7 +35,11 @@ CREATE TABLE IF NOT EXISTS acctbal (
     person INTEGER,
     opdate DATE,
     acct VARCHAR(20),
-    balance INTEGER    
+    balance INTEGER,
+    db INTEGER,
+    cr INTEGER,
+    crdt TIMESTAMP,
+    updt TIMESTAMP
 );
 
 CREATE INDEX idx_opdate_acct ON acctbal (acct,opdate);
