@@ -32,6 +32,7 @@ type (
 		GetBalance(ctx context.Context, p models.Person) (int, error)
 		Getwithdrawn(ctx context.Context, p models.Person) (int, error)
 		GetWithdrawals(ctx context.Context, p models.Person) ([]models.Opentry, error)
+		CreateWithdrawn(ctx context.Context, p models.Person, o models.POrder, sum int) (models.Opentry, error)
 	}
 
 	Srv struct {
@@ -383,7 +384,74 @@ func (s *Srv) actAcctBalance(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func (s *Srv) actAcctDebit(w http.ResponseWriter, r *http.Request) {
+func (s *Srv) actWithdraw(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	currPersonId, ok := ctx.Value(contextParam("CurrPersonID")).(int)
+
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		s.Log.Warnln("INVALID PERSON ID")
+		return
+	}
+
+	person, err := s.Service.GetPersonByID(ctx, currPersonId)
+
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		s.Log.Warnln("INVALID PERSON ID")
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		s.Log.Warnln("CAN'T READ BODY")
+		return
+	}
+
+	defer func() {
+		err := r.Body.Close()
+		if err != nil {
+			s.Log.Warnln("CAN'T CLOSE BODY")
+		}
+	}()
+
+	input := WithdrawRequest{}
+
+	err = json.Unmarshal(body, &input)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		s.Log.Warnln("CAN'T UNMARSHAL BODY: [%v]", err)
+		return
+	}
+
+	order, err := s.Service.GetOrder(ctx, models.POrder{Extnum: input.Order})
+
+	if err != nil {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		s.Log.Warnln("CAN'T FIND ORDER WITH NUM " + string(input.Order))
+		return
+	}
+
+	_, err = s.Service.CreateWithdrawn(ctx, person, order, input.Sum)
+
+	if err != nil {
+		if errors.Is(err, service.ErrRedSaldo) {
+			w.WriteHeader(http.StatusPaymentRequired)
+			s.Log.Warnln("RED SALDO: [%v]", err)
+			return
+		}
+
+		if errors.Is(err, service.ErrRedSaldo) {
+			w.WriteHeader(http.StatusInternalServerError)
+			s.Log.Warnln("CAN'T CREATE PAYMENT: [%v]", err)
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusOK)
 
 }
 
@@ -424,7 +492,7 @@ func (s *Srv) actAcctStatement(w http.ResponseWriter, r *http.Request) {
 
 	for _, opentry := range rows {
 		wr := WithdrawalsResponce{
-			Order:       opentry.Porder,
+			Order:       opentry.OrderExtNum,
 			Sum:         opentry.Sum1,
 			ProcessedAt: opentry.Crdt,
 		}

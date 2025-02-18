@@ -17,6 +17,11 @@ type (
 		Withdrawn float32 `json:"withdrawn"`
 	}
 
+	WithdrawRequest struct {
+		Order int `json:"order"`
+		Sum   int `json:"sum"`
+	}
+
 	WithdrawalsResponce struct {
 		Order       int       `json:"order"`
 		Sum         int       `json:"sum"`

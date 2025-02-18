@@ -23,6 +23,7 @@ var (
 	ErrOrderExists           = errors.New("ORDER WITH NUMBER EXISTS")
 	ErrDublicateOrder        = errors.New("DUBLICATE ORDER")
 	ErrNoFixedBalance        = errors.New("NO FIXED BALANCE YET")
+	ErrRedSaldo              = errors.New("RED SALDO")
 	//go:embed migrations/*.sql
 	embedMigrations embed.FS
 )
@@ -336,18 +337,20 @@ func (s *StorageService) GetPersonByID(ctx context.Context, id int) (models.Pers
 }
 
 func (s *StorageService) getMoveByDb(ctx context.Context, acct string, opdate time.Time) ([]models.Opentry, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id,
-    											person,
-    											porder,
-    											status,
-    											opdate,
-    											acctdb,
-    											acctcr,
-    											sum1,
-    											sum2,    
-    											crdt,
-    											updt
+	rows, err := s.db.QueryContext(ctx, `SELECT opentry.id,
+    											opentry.person,
+    											opentry.porder,
+    											opentry.status,
+    											opentry.opdate,
+    											opentry.acctdb,
+    											opentry.acctcr,
+    											opentry.sum1,
+    											opentry.sum2,    
+    											opentry.crdt,
+    											opentry.updt,
+												porder.extnum
 	FROM  opentry
+	LEFT JOIN porder ON porder.id=opentry.porder
 	WHERE acctdb=$1 
 	AND opdate>=$2`,
 		acct,
@@ -359,6 +362,7 @@ func (s *StorageService) getMoveByDb(ctx context.Context, acct string, opdate ti
 
 	res := make([]models.Opentry, 10)
 	var status sql.NullString
+	var extNum sql.NullInt32
 
 	for rows.Next() {
 		opentry := models.Opentry{}
@@ -373,9 +377,11 @@ func (s *StorageService) getMoveByDb(ctx context.Context, acct string, opdate ti
 			&opentry.Sum1,
 			&opentry.Sum2,
 			&opentry.Crdt,
-			&opentry.Updt)
+			&opentry.Updt,
+			&extNum)
 
 		opentry.Status = status.String
+		opentry.OrderExtNum = int(extNum.Int32)
 
 		if err != nil {
 			return nil, fmt.Errorf("CAN'T READ OPENTRY BY DB: [%v]", err)
@@ -619,6 +625,71 @@ func (s *StorageService) Getwithdrawn(ctx context.Context, p models.Person) (int
 
 	return b, nil
 
+}
+
+func (s *StorageService) CreateWithdrawn(ctx context.Context, p models.Person, o models.POrder, sum int) (models.Opentry, error) {
+	balance, err := s.GetBalance(ctx, p)
+
+	if err != nil {
+		return models.Opentry{}, fmt.Errorf("CAN GET BALANCE: [%v]", err)
+	}
+
+	if sum > balance {
+		return models.Opentry{}, ErrRedSaldo
+	}
+
+	accts, err := s.getPersonAccts(ctx, p)
+
+	if err != nil {
+		return models.Opentry{}, fmt.Errorf("CAN'T GET PERSON ACCT: [%v]", err)
+	}
+
+	if len(accts) == 0 {
+		return models.Opentry{}, fmt.Errorf("NO ACTIVE ACCT FOR PERSON")
+	}
+
+	acct := accts[0]
+
+	opentry := models.Opentry{
+		Person:      p.GetID(),
+		Porder:      o.ID,
+		OrderExtNum: o.Extnum,
+		Opdate:      time.Now(),
+		Sum1:        sum,
+		Crdt:        time.Now(),
+		Updt:        time.Now(),
+	}
+
+	if acct.Sign == "П" {
+		opentry.Acctdb = acct.Acct
+		opentry.Acctcr = "30102810000000000001"
+	} else if acct.Sign == "А" {
+		opentry.Acctcr = acct.Acct
+		opentry.Acctdb = "30102810000000000001"
+	}
+
+	var opentryId uint
+	err = s.db.QueryRowContext(ctx, `INSERT INTO opentry (person,porder,orderextnum,opdate,acctdb,acctcr,sum1,crdt,updt) 
+	                                 VALUES($1,$2,$3,$4) RETURNING id`,
+		opentry.Person,
+		opentry.Porder,
+		opentry.OrderExtNum,
+		opentry.Status,
+		opentry.Opdate,
+		opentry.Acctdb,
+		opentry.Acctcr,
+		opentry.Sum1,
+		opentry.Crdt,
+		opentry.Updt).
+		Scan(&opentryId)
+
+	if err != nil {
+		return models.Opentry{}, fmt.Errorf("CAN'T INSERT OPENTRY")
+	}
+
+	opentry.ID = opentryId
+
+	return opentry, nil
 }
 func (s *StorageService) GetWithdrawals(ctx context.Context, p models.Person) ([]models.Opentry, error) {
 	accts, err := s.getPersonAccts(ctx, p)
