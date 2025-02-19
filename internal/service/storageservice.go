@@ -38,6 +38,12 @@ const (
 	StatusProcessing = "PROCESSING"
 	Invalid          = "INVALID"
 	Processed        = "PROCESSED"
+
+	AcctSidePassive = "П"
+	AcctSideActive  = "А"
+	Base10          = 10
+	DefSliceLength  = 10
+	MaxDigitValue   = 9
 )
 
 func (s *StorageService) connect() error {
@@ -56,37 +62,29 @@ func (s *StorageService) connect() error {
 	return nil
 }
 
-func (s *StorageService) splitToDigitRevers(num int) ([]int, error) {
+func (s *StorageService) splitToDigitRevers(num int) []int {
 	digitArray := []int{}
 	testNum := num
 
 	for testNum > 0 {
-		digitArray = append(digitArray, testNum%10)
-		testNum = (int)(testNum / 10)
+		digitArray = append(digitArray, testNum%Base10)
+		testNum = (int)(testNum / Base10)
 	}
 
-	return digitArray, nil
+	return digitArray
 }
 
 func (s *StorageService) checkByLuhn(num int) error {
-
-	digitArray, err := s.splitToDigitRevers(num)
-
-	if err != nil {
-		return err
-	}
+	digitArray := s.splitToDigitRevers(num)
 
 	cK := 0
 
 	for k, v := range digitArray {
-
 		if (k+1)%2 == 0 {
 			testDigit := v * 2
-			if testDigit > 9 {
-				smallDigitArray, err := s.splitToDigitRevers(testDigit)
-				if err != nil {
-					return err
-				}
+			if testDigit > MaxDigitValue {
+				smallDigitArray := s.splitToDigitRevers(testDigit)
+
 				testDigit = smallDigitArray[0] + smallDigitArray[1]
 			}
 			v = testDigit
@@ -95,7 +93,7 @@ func (s *StorageService) checkByLuhn(num int) error {
 		cK += v
 	}
 
-	if cK%10 != 0 {
+	if cK%Base10 != 0 {
 		return ErrNoLuhnNumber
 	}
 
@@ -156,11 +154,19 @@ func (s *StorageService) CreatePeson(ctx context.Context, p models.Person) (mode
 		var perr *pgconn.PgError
 
 		if errors.As(err, &perr) && perr.Code == pgerrcode.UniqueViolation {
-			tx.Rollback()
+			err := tx.Rollback()
+
+			if err != nil {
+				return p, fmt.Errorf("CANT ROLLBACK TRANSACTION")
+			}
 			return p, ErrUserExists
 		}
 
-		tx.Rollback()
+		err := tx.Rollback()
+
+		if err != nil {
+			return p, fmt.Errorf("CANT ROLLBACK TRANSACTION")
+		}
 
 		return models.Person{}, fmt.Errorf("CAN'T CREATE PERSON [%w]", err)
 	}
@@ -168,7 +174,10 @@ func (s *StorageService) CreatePeson(ctx context.Context, p models.Person) (mode
 	err = tx.QueryRowContext(ctx, `SELECT nextval('acctserial')`).Scan(&acctSerial)
 
 	if err != nil {
-		tx.Rollback()
+		err := tx.Rollback()
+		if err != nil {
+			return p, fmt.Errorf("CANT ROLLBACK TRANSACTION")
+		}
 		return models.Person{}, fmt.Errorf("CAN'T ACCT SEQUENCE VALUE [%w]", err)
 	}
 	fmt.Println("SEQ:", acctSerial)
@@ -182,24 +191,34 @@ func (s *StorageService) CreatePeson(ctx context.Context, p models.Person) (mode
 		var perr *pgconn.PgError
 
 		if errors.As(err, &perr) && perr.Code == pgerrcode.UniqueViolation {
-			tx.Rollback()
+			err := tx.Rollback()
+			if err != nil {
+				return p, fmt.Errorf("CANT ROLLBACK TRANSACTION")
+			}
 			return p, ErrUserExists
 		}
 
-		tx.Rollback()
+		err := tx.Rollback()
+
+		if err != nil {
+			return p, fmt.Errorf("CANT ROLLBACK TRANSACTION")
+		}
 
 		return models.Person{}, fmt.Errorf("CAN'T CREATE PERSON [%w]", err)
 	}
 
 	p.ID = uint(personID)
 
-	tx.Commit()
+	err = tx.Commit()
+
+	if err != nil {
+		return p, fmt.Errorf("CANT COMMIT TRANSACTION")
+	}
 
 	return p, nil
 }
 
 func (s *StorageService) CreateOrder(ctx context.Context, p models.Person, order models.POrder) (models.POrder, error) {
-
 	var orderID int
 
 	err := s.checkByLuhn(order.Extnum)
@@ -221,7 +240,6 @@ func (s *StorageService) CreateOrder(ctx context.Context, p models.Person, order
 		order.Updt).Scan(&orderID)
 
 	if err != nil {
-
 		var perr *pgconn.PgError
 
 		if errors.As(err, &perr) && perr.Code != pgerrcode.UniqueViolation {
@@ -245,7 +263,6 @@ func (s *StorageService) CreateOrder(ctx context.Context, p models.Person, order
 }
 
 func (s *StorageService) GetOrder(ctx context.Context, order models.POrder) (models.POrder, error) {
-
 	var status sql.NullString
 
 	err := s.db.QueryRowContext(ctx, "SELECT id,pid,extnum,status,crdt,updt FROM porder WHERE extnum=$1", order.Extnum).
@@ -263,11 +280,9 @@ func (s *StorageService) GetOrder(ctx context.Context, order models.POrder) (mod
 	}
 
 	return order, nil
-
 }
 
 func (s *StorageService) GetOrders(ctx context.Context, p models.Person) ([]models.POrder, error) {
-
 	var status sql.NullString
 
 	result := []models.POrder{}
@@ -284,7 +299,6 @@ func (s *StorageService) GetOrders(ctx context.Context, p models.Person) ([]mode
 	order := models.POrder{}
 
 	for rows.Next() {
-
 		err := rows.Scan(&order.ID,
 			&order.Pid,
 			&order.Extnum,
@@ -299,7 +313,6 @@ func (s *StorageService) GetOrders(ctx context.Context, p models.Person) ([]mode
 		}
 
 		result = append(result, order)
-
 	}
 	return result, nil
 }
@@ -336,7 +349,7 @@ func (s *StorageService) GetPersonByID(ctx context.Context, id int) (models.Pers
 	return person, nil
 }
 
-func (s *StorageService) getMoveByDb(ctx context.Context, acct string, opdate time.Time) ([]models.Opentry, error) {
+func (s *StorageService) getMoveByDb(ctx context.Context, acct string, opdate time.Time) ([]models.Opentry, error) { //nolint:stylecheck //It's debit neither DB
 	rows, err := s.db.QueryContext(ctx, `SELECT opentry.id,
     											opentry.person,
     											opentry.porder,
@@ -360,7 +373,7 @@ func (s *StorageService) getMoveByDb(ctx context.Context, acct string, opdate ti
 		return nil, fmt.Errorf("CAN'T READ OPENTRY BY DB: [%v]", err)
 	}
 
-	res := make([]models.Opentry, 10)
+	res := make([]models.Opentry, DefSliceLength)
 	var status sql.NullString
 	var extNum sql.NullInt32
 
@@ -388,7 +401,6 @@ func (s *StorageService) getMoveByDb(ctx context.Context, acct string, opdate ti
 		}
 
 		res = append(res, opentry)
-
 	}
 
 	return res, nil
@@ -416,7 +428,7 @@ func (s *StorageService) getMoveByCr(ctx context.Context, acct string, opdate ti
 		return nil, fmt.Errorf("CAN'T READ OPENTRY BY CR: [%v]", err)
 	}
 
-	res := make([]models.Opentry, 10)
+	res := make([]models.Opentry, DefSliceLength)
 	var status sql.NullString
 
 	for rows.Next() {
@@ -441,7 +453,6 @@ func (s *StorageService) getMoveByCr(ctx context.Context, acct string, opdate ti
 		}
 
 		res = append(res, opentry)
-
 	}
 
 	return res, nil
@@ -485,10 +496,8 @@ func (s *StorageService) getLastFixBalance(ctx context.Context, acct models.Acct
 	}
 
 	return acctbal, nil
-
 }
 func (s *StorageService) calcBalanceByAcct(ctx context.Context, acct models.Acct) (int, error) {
-
 	balance := 0
 
 	acctbal, err := s.getLastFixBalance(ctx, acct)
@@ -508,9 +517,9 @@ func (s *StorageService) calcBalanceByAcct(ctx context.Context, acct models.Acct
 	}
 
 	for _, opentry := range rows {
-		if acct.Sign == "А" {
+		if acct.Sign == AcctSideActive {
 			balance += opentry.Sum1
-		} else if acct.Sign == "П" {
+		} else if acct.Sign == AcctSidePassive {
 			balance -= opentry.Sum1
 		}
 	}
@@ -522,13 +531,11 @@ func (s *StorageService) calcBalanceByAcct(ctx context.Context, acct models.Acct
 	}
 
 	for _, opentry := range rows {
-
-		if acct.Sign == "А" {
+		if acct.Sign == AcctSideActive {
 			balance -= opentry.Sum1
-		} else if acct.Sign == "П" {
+		} else if acct.Sign == AcctSidePassive {
 			balance += opentry.Sum1
 		}
-
 	}
 
 	return balance, nil
@@ -541,7 +548,7 @@ func (s *StorageService) getPersonAccts(ctx context.Context, p models.Person) ([
 		return nil, fmt.Errorf("CAN'T FIND PERSON acct [%v]", err)
 	}
 
-	res := make([]models.Acct, 5)
+	res := make([]models.Acct, DefSliceLength)
 
 	for rows.Next() {
 		var status, sign sql.NullString
@@ -558,11 +565,9 @@ func (s *StorageService) getPersonAccts(ctx context.Context, p models.Person) ([
 	}
 
 	return res, nil
-
 }
 
 func (s *StorageService) GetBalance(ctx context.Context, p models.Person) (int, error) {
-
 	b := 0
 
 	accts, err := s.getPersonAccts(ctx, p)
@@ -572,7 +577,6 @@ func (s *StorageService) GetBalance(ctx context.Context, p models.Person) (int, 
 	}
 
 	for _, acct := range accts {
-
 		if b0, err := s.calcBalanceByAcct(ctx, acct); err == nil {
 			b += b0
 		}
@@ -598,7 +602,7 @@ func (s *StorageService) Getwithdrawn(ctx context.Context, p models.Person) (int
 			}
 		}
 
-		if acct.Sign == "П" {
+		if acct.Sign == AcctSidePassive {
 			b += fixedBalance.Db
 			rows, err := s.getMoveByDb(ctx, acct.Acct, fixedBalance.Opdate)
 
@@ -608,7 +612,7 @@ func (s *StorageService) Getwithdrawn(ctx context.Context, p models.Person) (int
 			for _, opentry := range rows {
 				b += opentry.Sum1
 			}
-		} else if acct.Sign == "А" {
+		} else if acct.Sign == AcctSideActive {
 			b += fixedBalance.Cr
 
 			rows, err := s.getMoveByCr(ctx, acct.Acct, fixedBalance.Opdate)
@@ -620,11 +624,9 @@ func (s *StorageService) Getwithdrawn(ctx context.Context, p models.Person) (int
 				b += opentry.Sum1
 			}
 		}
-
 	}
 
 	return b, nil
-
 }
 
 func (s *StorageService) CreateWithdrawn(ctx context.Context, p models.Person, o models.POrder, sum int) (models.Opentry, error) {
@@ -660,15 +662,15 @@ func (s *StorageService) CreateWithdrawn(ctx context.Context, p models.Person, o
 		Updt:        time.Now(),
 	}
 
-	if acct.Sign == "П" {
+	if acct.Sign == AcctSidePassive {
 		opentry.Acctdb = acct.Acct
 		opentry.Acctcr = "30102810000000000001"
-	} else if acct.Sign == "А" {
+	} else if acct.Sign == AcctSideActive {
 		opentry.Acctcr = acct.Acct
 		opentry.Acctdb = "30102810000000000001"
 	}
 
-	var opentryId uint
+	var opentryID uint
 	err = s.db.QueryRowContext(ctx, `INSERT INTO opentry (person,porder,orderextnum,opdate,acctdb,acctcr,sum1,crdt,updt) 
 	                                 VALUES($1,$2,$3,$4) RETURNING id`,
 		opentry.Person,
@@ -681,13 +683,13 @@ func (s *StorageService) CreateWithdrawn(ctx context.Context, p models.Person, o
 		opentry.Sum1,
 		opentry.Crdt,
 		opentry.Updt).
-		Scan(&opentryId)
+		Scan(&opentryID)
 
 	if err != nil {
 		return models.Opentry{}, fmt.Errorf("CAN'T INSERT OPENTRY")
 	}
 
-	opentry.ID = opentryId
+	opentry.ID = opentryID
 
 	return opentry, nil
 }
@@ -698,10 +700,10 @@ func (s *StorageService) GetWithdrawals(ctx context.Context, p models.Person) ([
 		return nil, fmt.Errorf("CAN'T FIND PERSON ACCT [%v]", err)
 	}
 
-	rows := make([]models.Opentry, 10)
+	rows := make([]models.Opentry, DefSliceLength)
 
 	for _, acct := range accts {
-		if acct.Sign == "П" {
+		if acct.Sign == AcctSidePassive {
 			r, e := s.getMoveByDb(ctx, acct.Acct, acct.Crdt)
 
 			if e != nil {
@@ -709,7 +711,7 @@ func (s *StorageService) GetWithdrawals(ctx context.Context, p models.Person) ([
 			}
 
 			rows = append(rows, r...)
-		} else if acct.Sign == "А" {
+		} else if acct.Sign == AcctSideActive {
 			r, e := s.getMoveByCr(ctx, acct.Acct, acct.Crdt)
 
 			if e != nil {
@@ -721,16 +723,18 @@ func (s *StorageService) GetWithdrawals(ctx context.Context, p models.Person) ([
 	}
 
 	return rows, nil
-
 }
 
 func (s *StorageService) RunMigrations() error {
-
 	goose.SetBaseFS(embedMigrations)
-	goose.SetDialect("postgres")
+	err := goose.SetDialect("postgres")
+
+	if err != nil {
+		return fmt.Errorf("CAN'T SELECT GOOSE DIALECT: [%v]", err)
+	}
 
 	if err := goose.Up(s.db, "migrations"); err != nil {
-		return err
+		return fmt.Errorf("CAN'T UP GOOSE MIGRATION: [%v]", err)
 	}
 	return nil
 }

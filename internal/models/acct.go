@@ -18,7 +18,7 @@ type AcctBal struct {
 	Opdate  time.Time
 	Acct    string
 	Balance int
-	Db      int
+	Db      int //nolint:stylecheck //It's debit neither DB
 	Cr      int
 	Crdt    time.Time
 	Updt    time.Time
