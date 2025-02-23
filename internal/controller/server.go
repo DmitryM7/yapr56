@@ -169,7 +169,7 @@ func (s *Srv) actUserLogin(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
-		s.Log.Errorln("CAN'T UNMARSHAL BODY")
+		s.Log.Errorln("CAN'T UNMARSHAL BODY:<" + string(body) + "<")
 		return
 	}
 
@@ -194,6 +194,8 @@ func (s *Srv) actUserLogin(w http.ResponseWriter, r *http.Request) {
 		s.Log.Errorln("CAN'T CREATE JWT FOR USER:", person.ID)
 		return
 	}
+
+	s.Log.Infoln("NOW PERSON IS ", person.ID)
 
 	http.SetCookie(w, &http.Cookie{
 		Name:    "token",
@@ -236,6 +238,8 @@ func (s *Srv) actOrdersUpload(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	if currPersonId, ok := ctx.Value(contextParam("CurrPersonID")).(int); ok {
+
+		s.Log.Infoln("CurrPerson is ", currPersonId)
 		currPerson, err := s.Service.GetPersonByID(ctx, currPersonId)
 
 		if err != nil {
@@ -260,13 +264,13 @@ func (s *Srv) actOrdersUpload(w http.ResponseWriter, r *http.Request) {
 
 			if errors.Is(err, service.ErrDublicateOrder) {
 				w.WriteHeader(http.StatusOK)
-				s.Log.Errorln(err)
+				s.Log.Infoln(err)
 				return
 			}
 
 			if errors.Is(err, service.ErrOrderExists) {
 				w.WriteHeader(http.StatusConflict)
-				s.Log.Errorln(err)
+				s.Log.Infoln(err)
 				return
 			}
 
@@ -276,7 +280,7 @@ func (s *Srv) actOrdersUpload(w http.ResponseWriter, r *http.Request) {
 
 		}
 
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(http.StatusAccepted)
 
 	}
 
@@ -349,7 +353,7 @@ func (s *Srv) actAcctBalance(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		s.Log.Errorln("CAN'T GET BALANCE BY PERSON:[%v]", err)
+		s.Log.Errorln("CAN'T GET BALANCE BY PERSON:", err)
 		return
 	}
 
@@ -357,7 +361,7 @@ func (s *Srv) actAcctBalance(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		s.Log.Errorln("CAN'T WITHDRAWN BY PERSON:[%v]", err)
+		s.Log.Errorln("CAN'T WITHDRAWN BY PERSON:", err)
 		return
 	}
 
@@ -372,6 +376,7 @@ func (s *Srv) actAcctBalance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.WriteHeader(http.StatusOK)
 	_, err = w.Write(output)
 
 	if err != nil {
@@ -379,8 +384,6 @@ func (s *Srv) actAcctBalance(w http.ResponseWriter, r *http.Request) {
 		s.Log.Errorln("CAN'T WRITE DATA TO BODY:[%v]", err)
 		return
 	}
-
-	w.WriteHeader(http.StatusOK)
 
 }
 
@@ -423,16 +426,27 @@ func (s *Srv) actWithdraw(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		s.Log.Warnln("CAN'T UNMARSHAL BODY: [%v]", err)
+		s.Log.Warnln("CAN'T UNMARSHAL BODY:", err)
 		return
 	}
 
-	order, err := s.Service.GetOrder(ctx, models.POrder{Extnum: input.Order})
+	extnum, err := strconv.Atoi(input.Order)
 
 	if err != nil {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		s.Log.Warnln("CAN'T FIND ORDER WITH NUM " + string(input.Order))
+		w.WriteHeader(http.StatusInternalServerError)
+		s.Log.Warnln("CAN'T CONVERT STRING ORDER NUM TO INT:", err)
 		return
+	}
+	order, err := s.Service.GetOrder(ctx, models.POrder{Extnum: extnum})
+
+	if err != nil {
+		//w.WriteHeader(http.StatusUnprocessableEntity)
+		s.Log.Warnln("CAN'T FIND ORDER WITH NUM " + string(input.Order))
+
+		order = models.POrder{
+			Extnum: extnum,
+		}
+		//return
 	}
 
 	_, err = s.Service.CreateWithdrawn(ctx, person, order, input.Sum)
@@ -440,15 +454,14 @@ func (s *Srv) actWithdraw(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, service.ErrRedSaldo) {
 			w.WriteHeader(http.StatusPaymentRequired)
-			s.Log.Warnln("RED SALDO: [%v]", err)
+			s.Log.Warnln("RED SALDO:", err)
+			return
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+			s.Log.Warnln("CAN'T CREATE PAYMENT:", err)
 			return
 		}
 
-		if errors.Is(err, service.ErrRedSaldo) {
-			w.WriteHeader(http.StatusInternalServerError)
-			s.Log.Warnln("CAN'T CREATE PAYMENT: [%v]", err)
-			return
-		}
 	}
 
 	w.WriteHeader(http.StatusOK)

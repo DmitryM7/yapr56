@@ -233,9 +233,10 @@ func (s *StorageService) CreateOrder(ctx context.Context, p models.Person, order
 	order.Crdt = time.Now()
 	order.Updt = order.Crdt
 
-	err = s.db.QueryRowContext(ctx, `INSERT INTO porder (pid,extnum,crdt,updt) VALUES($1,$2,$3,$4) RETURNING id`,
+	err = s.db.QueryRowContext(ctx, `INSERT INTO porder (pid,extnum,status,crdt,updt) VALUES($1,$2,$3,$4) RETURNING id`,
 		order.Pid,
 		order.Extnum,
+		StatusNew,
 		order.Crdt,
 		order.Updt).Scan(&orderID)
 
@@ -283,7 +284,10 @@ func (s *StorageService) GetOrder(ctx context.Context, order models.POrder) (mod
 }
 
 func (s *StorageService) GetOrders(ctx context.Context, p models.Person) ([]models.POrder, error) {
-	var status sql.NullString
+	var (
+		accrual sql.NullInt64
+		status  sql.NullString
+	)
 
 	result := []models.POrder{}
 
@@ -303,7 +307,7 @@ func (s *StorageService) GetOrders(ctx context.Context, p models.Person) ([]mode
 			&order.Pid,
 			&order.Extnum,
 			&status,
-			&order.Accrual,
+			&accrual,
 			&order.Crdt,
 			&order.Updt)
 		order.Status = status.String
@@ -311,6 +315,8 @@ func (s *StorageService) GetOrders(ctx context.Context, p models.Person) ([]mode
 		if err != nil {
 			return result, err
 		}
+
+		order.Accrual = int(accrual.Int64)
 
 		result = append(result, order)
 	}
@@ -468,7 +474,7 @@ func (s *StorageService) getLastFixBalance(ctx context.Context, acct models.Acct
 											 cr,
 											 crdt,
 											 updt
-	                                  FROM acct 
+	                                  FROM acctbal 
 									  WHERE acct=$1 AND opdate>$2
 									  ORDER BY opdate DESC LIMIT 1`,
 		acct.Acct,
@@ -542,7 +548,8 @@ func (s *StorageService) calcBalanceByAcct(ctx context.Context, acct models.Acct
 }
 
 func (s *StorageService) getPersonAccts(ctx context.Context, p models.Person) ([]models.Acct, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT * FROM acct WHERE person=$1", p.GetID())
+
+	rows, err := s.db.QueryContext(ctx, "SELECT id,acct,person,sign,status,crdt,updt FROM acct WHERE person=$1", p.GetID())
 
 	if err != nil {
 		return nil, fmt.Errorf("CAN'T FIND PERSON acct [%v]", err)
@@ -553,7 +560,7 @@ func (s *StorageService) getPersonAccts(ctx context.Context, p models.Person) ([
 	for rows.Next() {
 		var status, sign sql.NullString
 		acct := models.Acct{}
-		err := rows.Scan(&acct.ID, &acct.Acct, &acct.Person, &acct.Crdt, &acct.Updt)
+		err := rows.Scan(&acct.ID, &acct.Acct, &acct.Person, &sign, &status, &acct.Crdt, &acct.Updt)
 		acct.Status = status.String
 		acct.Sign = sign.String
 
@@ -561,6 +568,8 @@ func (s *StorageService) getPersonAccts(ctx context.Context, p models.Person) ([
 			return nil, fmt.Errorf("CAN'T CREATE ACCT STRUCT [%v]", err)
 		}
 
+		acct.Status = status.String
+		acct.Sign = sign.String
 		res = append(res, acct)
 	}
 
@@ -598,7 +607,7 @@ func (s *StorageService) Getwithdrawn(ctx context.Context, p models.Person) (int
 
 		if err != nil {
 			if !errors.Is(err, ErrNoFixedBalance) {
-				return 0, fmt.Errorf("CAN'T GET LAST FIXED BALANCE: [%v]", err)
+				return 0, fmt.Errorf("CAN'T CHECK LAST FIXED BALANCE: [%v]", err)
 			}
 		}
 
@@ -636,6 +645,10 @@ func (s *StorageService) CreateWithdrawn(ctx context.Context, p models.Person, o
 		return models.Opentry{}, fmt.Errorf("CAN GET BALANCE: [%v]", err)
 	}
 
+	if sum == 0 {
+		return models.Opentry{}, fmt.Errorf("ZERO SUM TO WITHDRAW")
+	}
+
 	if sum > balance {
 		return models.Opentry{}, ErrRedSaldo
 	}
@@ -655,6 +668,7 @@ func (s *StorageService) CreateWithdrawn(ctx context.Context, p models.Person, o
 	opentry := models.Opentry{
 		Person:      p.GetID(),
 		Porder:      o.ID,
+		Status:      StatusNew,
 		OrderExtNum: o.Extnum,
 		Opdate:      time.Now(),
 		Sum1:        sum,

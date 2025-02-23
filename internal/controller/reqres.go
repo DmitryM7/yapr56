@@ -18,8 +18,8 @@ type (
 	}
 
 	WithdrawRequest struct {
-		Order int `json:"order"`
-		Sum   int `json:"sum"`
+		Order string `json:"order"`
+		Sum   int    `json:"sum"`
 	}
 
 	WithdrawalsResponce struct {
