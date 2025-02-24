@@ -2,7 +2,7 @@
 // Source: github.com/DmitryM7/yapr56.git/internal/controller (interfaces: IStorage)
 
 // Package mock_controller is a generated GoMock package.
-package mocks
+package mock_controller
 
 import (
 	context "context"
@@ -63,6 +63,21 @@ func (m *MockIStorage) CreatePeson(arg0 context.Context, arg1 models.Person) (mo
 func (mr *MockIStorageMockRecorder) CreatePeson(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreatePeson", reflect.TypeOf((*MockIStorage)(nil).CreatePeson), arg0, arg1)
+}
+
+// CreateWithdrawn mocks base method.
+func (m *MockIStorage) CreateWithdrawn(arg0 context.Context, arg1 models.Person, arg2 models.POrder, arg3 int) (models.Opentry, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateWithdrawn", arg0, arg1, arg2, arg3)
+	ret0, _ := ret[0].(models.Opentry)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateWithdrawn indicates an expected call of CreateWithdrawn.
+func (mr *MockIStorageMockRecorder) CreateWithdrawn(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateWithdrawn", reflect.TypeOf((*MockIStorage)(nil).CreateWithdrawn), arg0, arg1, arg2, arg3)
 }
 
 // GetBalance mocks base method.
@@ -138,4 +153,34 @@ func (m *MockIStorage) GetPesonByCredential(arg0 context.Context, arg1, arg2 str
 func (mr *MockIStorageMockRecorder) GetPesonByCredential(arg0, arg1, arg2 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPesonByCredential", reflect.TypeOf((*MockIStorage)(nil).GetPesonByCredential), arg0, arg1, arg2)
+}
+
+// GetWithdrawals mocks base method.
+func (m *MockIStorage) GetWithdrawals(arg0 context.Context, arg1 models.Person) ([]models.Opentry, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWithdrawals", arg0, arg1)
+	ret0, _ := ret[0].([]models.Opentry)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWithdrawals indicates an expected call of GetWithdrawals.
+func (mr *MockIStorageMockRecorder) GetWithdrawals(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWithdrawals", reflect.TypeOf((*MockIStorage)(nil).GetWithdrawals), arg0, arg1)
+}
+
+// Getwithdrawn mocks base method.
+func (m *MockIStorage) Getwithdrawn(arg0 context.Context, arg1 models.Person) (int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Getwithdrawn", arg0, arg1)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// Getwithdrawn indicates an expected call of Getwithdrawn.
+func (mr *MockIStorageMockRecorder) Getwithdrawn(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Getwithdrawn", reflect.TypeOf((*MockIStorage)(nil).Getwithdrawn), arg0, arg1)
 }

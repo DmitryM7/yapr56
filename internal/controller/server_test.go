@@ -8,9 +8,11 @@ import (
 	"testing"
 
 	"github.com/DmitryM7/yapr56.git/internal/conf"
-	"github.com/DmitryM7/yapr56.git/internal/controller/mocks"
 	"github.com/DmitryM7/yapr56.git/internal/logger"
+	mock_controller "github.com/DmitryM7/yapr56.git/internal/mocks"
+	"github.com/DmitryM7/yapr56.git/internal/models"
 	"github.com/DmitryM7/yapr56.git/internal/sec"
+	"github.com/DmitryM7/yapr56.git/internal/service"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
@@ -22,7 +24,23 @@ func TestSrv_actUserRegister(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	storageservice := mocks.NewMockIStorage(ctrl)
+	storageservice := mock_controller.NewMockIStorage(ctrl)
+
+	storageservice.EXPECT().CreatePeson(gomock.Any(), models.Person{
+		Login: "dmaslov",
+		Pass:  "!QAZ2wsx",
+	}).MaxTimes(1).Return(models.Person{
+		Login: "dmaslov",
+		Pass:  "!QAZ2wsx",
+	}, nil)
+
+	storageservice.EXPECT().CreatePeson(gomock.Any(), models.Person{
+		Login: "dmaslov",
+		Pass:  "!QAZ2wsx",
+	}).MaxTimes(1).Return(models.Person{
+		Login: "dmaslov",
+		Pass:  "!QAZ2wsx",
+	}, service.ErrUserExists)
 
 	jwt := sec.NewJwtProvider(conf.SecretKeyTime, conf.SecretKey)
 	serv, err := NewServer(logger, storageservice, jwt)
@@ -34,7 +52,6 @@ func TestSrv_actUserRegister(t *testing.T) {
 		r      *http.Request
 		person UserRegisterRequest
 		method string
-		moc    *mocks.MockIStorage
 	}
 
 	type want struct {
