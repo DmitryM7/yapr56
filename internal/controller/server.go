@@ -115,7 +115,7 @@ func (s *Srv) actUserRegister(w http.ResponseWriter, r *http.Request) {
 		Pass:  request.Password,
 	}
 
-	ctx := context.TODO()
+	ctx := r.Context()
 
 	person, err = s.Service.CreatePeson(ctx, person)
 
@@ -173,7 +173,7 @@ func (s *Srv) actUserLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx := context.TODO()
+	ctx := r.Context()
 	person, err := s.Service.GetPesonByCredential(ctx, p.Login, p.Password)
 
 	if err != nil {
