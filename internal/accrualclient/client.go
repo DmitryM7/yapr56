@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/DmitryM7/yapr56.git/internal/models"
@@ -32,7 +31,7 @@ func (c *AccrualClient) Get(o models.POrder) (Responce, error) {
 
 	extnum := strconv.Itoa(o.Extnum)
 
-	req, err := http.NewRequest("POST", c.Url, strings.NewReader(extnum))
+	req, err := http.NewRequest(http.MethodGet, c.Url+"/"+extnum, nil)
 
 	if err != nil {
 		return Responce{}, fmt.Errorf("CAN'T CREATE NEW REQUEST: [%w]", err)
@@ -74,9 +73,15 @@ func (c *AccrualClient) Get(o models.POrder) (Responce, error) {
 	err = json.Unmarshal(body, &output)
 
 	if err != nil {
-		return Responce{}, fmt.Errorf("CAN'T UNMARSHAL BODY")
+		return Responce{}, fmt.Errorf("CAN'T UNMARSHAL BODY:>" + string(body) + "<")
 	}
 
 	return output, nil
 
+}
+
+func NewClient(url string) (AccrualClient, error) {
+	return AccrualClient{
+		Url: url,
+	}, nil
 }
