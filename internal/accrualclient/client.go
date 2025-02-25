@@ -1,6 +1,8 @@
 package accrualclient
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -51,5 +53,30 @@ func (c *AccrualClient) Get(o models.POrder) (Responce, error) {
 	if err != nil {
 		return Responce{}, fmt.Errorf("CAN'T READ BODY: [%w]", err)
 	}
+
+	if resp.StatusCode == 409 {
+		if dur, ok := resp.Header["Retry-After"]; ok {
+			if len(dur) > 0 {
+				duration, err := strconv.Atoi(dur[0])
+				if err != nil {
+					return Responce{}, fmt.Errorf("BUSY BUT CAN'T UNDERSTAND HOW MUCH")
+				}
+
+				return Responce{}, ErrBusyPleaseWait{
+					err:      errors.New(string(body)),
+					Duration: time.Duration(duration),
+				}
+			}
+		}
+	}
+
+	output := Responce{}
+	err = json.Unmarshal(body, &output)
+
+	if err != nil {
+		return Responce{}, fmt.Errorf("CAN'T UNMARSHAL BODY")
+	}
+
+	return output, nil
 
 }
