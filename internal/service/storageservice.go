@@ -36,8 +36,8 @@ type StorageService struct {
 const (
 	StatusNew        = "NEW"
 	StatusProcessing = "PROCESSING"
-	Invalid          = "INVALID"
-	Processed        = "PROCESSED"
+	StatusInvalid    = "INVALID"
+	StatusProcessed  = "PROCESSED"
 
 	AcctSidePassive = "П"
 	AcctSideActive  = "А"
@@ -753,7 +753,96 @@ func (s *StorageService) RunMigrations() error {
 	return nil
 }
 
+func (s *StorageService) GetOrderToSend(ctx context.Context, limit int) ([]models.POrder, error) {
+	var status sql.NullString
+
+	rows, err := s.db.QueryContext(ctx, "SELECT id,pid,extnum,status,crdt,updt FROM porder WHERE status in ($1) limit $2", StatusNew, limit)
+
+	if err != nil {
+		return nil, fmt.Errorf("CAN'T GET ORDER LIST [%w]", err)
+	}
+
+	orders := []models.POrder{}
+
+	for rows.Next() {
+		order := models.POrder{}
+		rows.Scan(&order.ID,
+			&order.Pid,
+			&order.Extnum,
+			&status,
+			&order.Crdt,
+			&order.Updt)
+
+		order.Status = status.String
+
+		orders = append(orders, order)
+	}
+
+	return orders, nil
+}
+
+func (s *StorageService) AddFunds(ctx context.Context, p models.Person, o models.POrder, sum int) (models.Opentry, error) {
+
+	var opentryID uint
+
+	accts, err := s.getPersonAccts(ctx, p)
+
+	if err != nil {
+		return models.Opentry{}, fmt.Errorf("CAN'T GET PERSON ACCT: [%v]", err)
+	}
+
+	if len(accts) == 0 {
+		return models.Opentry{}, fmt.Errorf("NO ACTIVE ACCT FOR PERSON")
+	}
+
+	acct := accts[0]
+
+	opentry := models.Opentry{
+		Person:      p.GetID(),
+		Porder:      o.ID,
+		Status:      StatusProcessed,
+		OrderExtNum: o.Extnum,
+		Opdate:      time.Now(),
+		Acctdb:      "30102810000000000001",
+		Acctcr:      acct.Acct,
+		Sum1:        sum,
+		Crdt:        time.Now(),
+		Updt:        time.Now(),
+	}
+
+	err = s.db.QueryRowContext(ctx, `INSERT INTO opentry (person,porder,orderextnum,opdate,acctdb,acctcr,sum1,crdt,updt) 
+	                                 VALUES($1,$2,$3,$4) RETURNING id`,
+		opentry.Person,
+		opentry.Porder,
+		opentry.OrderExtNum,
+		opentry.Status,
+		opentry.Opdate,
+		opentry.Acctdb,
+		opentry.Acctcr,
+		opentry.Sum1,
+		opentry.Crdt,
+		opentry.Updt).
+		Scan(&opentryID)
+
+	if err != nil {
+		return models.Opentry{}, fmt.Errorf("CAN'T INSERT OPENTRY [%v]", err)
+	}
+
+	opentry.ID = opentryID
+
+	return opentry, nil
+}
+
+func (s *StorageService) OrderSetProccessStatus(ctx context.Context, o models.POrder) error {
+	_, err := s.db.ExecContext(ctx, "UPDATE order SET status=$1 WHERE id=$2", StatusProcessing, o.ID)
+	if err != nil {
+		return fmt.Errorf("CAN'T UPDATE STATUS [%w]", err)
+	}
+	return nil
+}
+
 func NewStorageService(log logger.Lg, dsn string) (StorageService, error) {
+
 	s := StorageService{
 		DatabaseDSN: dsn,
 	}

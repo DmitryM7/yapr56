@@ -11,6 +11,8 @@ const defaultSecretKeyTime = 25
 
 type Config struct {
 	BndAdr        string
+	AcrBndAdr     string
+	AcrPoint      string
 	DSN           string
 	SecretKey     string
 	SecretKeyTime time.Duration
@@ -20,12 +22,22 @@ func (s *Config) ParseFlags() {
 	flag.StringVar(&s.BndAdr, "a", "localhost:8080", "host where server is run")
 	flag.StringVar(&s.DSN, "d", "", "database dsn")
 	flag.StringVar(&s.SecretKey, "k", "", "Secret key for JWT")
+	flag.StringVar(&s.AcrBndAdr, "aa", "localhost:8080", "Host where accural service run.")
+	flag.StringVar(&s.AcrPoint, "ap", "/api/orders", "Accurual point")
 	flag.DurationVar(&s.SecretKeyTime, "kt", defaultSecretKeyTime*time.Minute, "Time secret key in minutes")
 }
 
 func (s *Config) ParseEnv() {
 	if env := os.Getenv("SERVER_ADDRESS"); env != "" {
 		s.BndAdr = env
+	}
+
+	if env := os.Getenv("ACCURAL_SERVER_ADDRESS"); env != "" {
+		s.AcrBndAdr = env
+	}
+
+	if env := os.Getenv("ACCURAL_POINT"); env != "" {
+		s.AcrPoint = env
 	}
 
 	if env := os.Getenv("DATABASE_DSN"); env != "" {
