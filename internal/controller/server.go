@@ -258,7 +258,7 @@ func (s *Srv) actOrdersUpload(w http.ResponseWriter, r *http.Request) {
 
 			if errors.Is(err, service.ErrNoLuhnNumber) {
 				w.WriteHeader(http.StatusUnprocessableEntity)
-				s.Log.Errorln("INCORRECT ORDER NUMBER:", err)
+				s.Log.Infoln("INCORRECT ORDER NUMBER:", err)
 				return
 			}
 

@@ -233,7 +233,7 @@ func (s *StorageService) CreateOrder(ctx context.Context, p models.Person, order
 	order.Crdt = time.Now()
 	order.Updt = order.Crdt
 
-	err = s.db.QueryRowContext(ctx, `INSERT INTO porder (pid,extnum,status,crdt,updt) VALUES($1,$2,$3,$4) RETURNING id`,
+	err = s.db.QueryRowContext(ctx, `INSERT INTO porder (pid,extnum,status,crdt,updt) VALUES($1,$2,$3,$4,$5) RETURNING id`,
 		order.Pid,
 		order.Extnum,
 		StatusNew,
@@ -356,6 +356,13 @@ func (s *StorageService) GetPersonByID(ctx context.Context, id int) (models.Pers
 }
 
 func (s *StorageService) getMoveByDb(ctx context.Context, acct string, opdate time.Time) ([]models.Opentry, error) { //nolint:stylecheck //It's debit neither DB
+	var (
+		res    []models.Opentry
+		sum1   sql.NullInt64
+		sum2   sql.NullInt64
+		status sql.NullString
+		extNum sql.NullInt32
+	)
 	rows, err := s.db.QueryContext(ctx, `SELECT opentry.id,
     											opentry.person,
     											opentry.porder,
@@ -379,10 +386,6 @@ func (s *StorageService) getMoveByDb(ctx context.Context, acct string, opdate ti
 		return nil, fmt.Errorf("CAN'T READ OPENTRY BY DB: [%v]", err)
 	}
 
-	res := make([]models.Opentry, DefSliceLength)
-	var status sql.NullString
-	var extNum sql.NullInt32
-
 	for rows.Next() {
 		opentry := models.Opentry{}
 		err := rows.Scan(
@@ -393,14 +396,16 @@ func (s *StorageService) getMoveByDb(ctx context.Context, acct string, opdate ti
 			&opentry.Opdate,
 			&opentry.Acctdb,
 			&opentry.Acctcr,
-			&opentry.Sum1,
-			&opentry.Sum2,
+			&sum1,
+			&sum2,
 			&opentry.Crdt,
 			&opentry.Updt,
 			&extNum)
 
 		opentry.Status = status.String
 		opentry.OrderExtNum = int(extNum.Int32)
+		opentry.Sum1 = int(sum1.Int64)
+		opentry.Sum2 = int(sum2.Int64)
 
 		if err != nil {
 			return nil, fmt.Errorf("CAN'T READ OPENTRY BY DB: [%v]", err)
@@ -413,6 +418,13 @@ func (s *StorageService) getMoveByDb(ctx context.Context, acct string, opdate ti
 }
 
 func (s *StorageService) getMoveByCr(ctx context.Context, acct string, opdate time.Time) ([]models.Opentry, error) {
+	var (
+		status sql.NullString
+		res    []models.Opentry
+		sum1   sql.NullInt64
+		sum2   sql.NullInt64
+	)
+
 	rows, err := s.db.QueryContext(ctx, `SELECT id,
     											person,
     											porder,
@@ -434,10 +446,8 @@ func (s *StorageService) getMoveByCr(ctx context.Context, acct string, opdate ti
 		return nil, fmt.Errorf("CAN'T READ OPENTRY BY CR: [%v]", err)
 	}
 
-	res := make([]models.Opentry, DefSliceLength)
-	var status sql.NullString
-
 	for rows.Next() {
+
 		opentry := models.Opentry{}
 		err := rows.Scan(
 			&opentry.ID,
@@ -447,14 +457,17 @@ func (s *StorageService) getMoveByCr(ctx context.Context, acct string, opdate ti
 			&opentry.Opdate,
 			&opentry.Acctdb,
 			&opentry.Acctcr,
-			&opentry.Sum1,
-			&opentry.Sum2,
+			&sum1,
+			&sum2,
 			&opentry.Crdt,
 			&opentry.Updt)
 
 		opentry.Status = status.String
+		opentry.Sum1 = int(sum1.Int64)
+		opentry.Sum2 = int(sum2.Int64)
 
 		if err != nil {
+			fmt.Println(err)
 			return nil, fmt.Errorf("CAN'T READ OPENTRY BY CR: [%v]", err)
 		}
 
@@ -505,6 +518,7 @@ func (s *StorageService) getLastFixBalance(ctx context.Context, acct models.Acct
 }
 func (s *StorageService) calcBalanceByAcct(ctx context.Context, acct models.Acct) (int, error) {
 	balance := 0
+	moveDateCheck := acct.Crdt
 
 	acctbal, err := s.getLastFixBalance(ctx, acct)
 
@@ -514,9 +528,10 @@ func (s *StorageService) calcBalanceByAcct(ctx context.Context, acct models.Acct
 		}
 	} else {
 		balance += acctbal.Balance
+		moveDateCheck = acctbal.Opdate
 	}
 
-	rows, err := s.getMoveByDb(ctx, acct.Acct, acctbal.Opdate)
+	rows, err := s.getMoveByDb(ctx, acct.Acct, moveDateCheck)
 
 	if err != nil {
 		return 0, fmt.Errorf("CAN'T READ OPENTRY BY CR INFO [%v]", err)
@@ -530,11 +545,12 @@ func (s *StorageService) calcBalanceByAcct(ctx context.Context, acct models.Acct
 		}
 	}
 
-	rows, err = s.getMoveByCr(ctx, acct.Acct, acctbal.Opdate)
+	rows, err = s.getMoveByCr(ctx, acct.Acct, moveDateCheck)
 
 	if err != nil {
 		return 0, fmt.Errorf("CAN'T READ OPENTRY BY DB INFO [%v]", err)
 	}
+	fmt.Printf("[%#v]", rows)
 
 	for _, opentry := range rows {
 		if acct.Sign == AcctSideActive {
@@ -543,19 +559,18 @@ func (s *StorageService) calcBalanceByAcct(ctx context.Context, acct models.Acct
 			balance += opentry.Sum1
 		}
 	}
-
 	return balance, nil
 }
 
 func (s *StorageService) getPersonAccts(ctx context.Context, p models.Person) ([]models.Acct, error) {
+
+	var res []models.Acct
 
 	rows, err := s.db.QueryContext(ctx, "SELECT id,acct,person,sign,status,crdt,updt FROM acct WHERE person=$1", p.GetID())
 
 	if err != nil {
 		return nil, fmt.Errorf("CAN'T FIND PERSON acct [%v]", err)
 	}
-
-	res := make([]models.Acct, DefSliceLength)
 
 	for rows.Next() {
 		var status, sign sql.NullString
@@ -685,8 +700,8 @@ func (s *StorageService) CreateWithdrawn(ctx context.Context, p models.Person, o
 	}
 
 	var opentryID uint
-	err = s.db.QueryRowContext(ctx, `INSERT INTO opentry (person,porder,orderextnum,opdate,acctdb,acctcr,sum1,crdt,updt) 
-	                                 VALUES($1,$2,$3,$4) RETURNING id`,
+	err = s.db.QueryRowContext(ctx, `INSERT INTO opentry (person,porder,orderextnum,status,opdate,acctdb,acctcr,sum1,crdt,updt) 
+	                                 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
 		opentry.Person,
 		opentry.Porder,
 		opentry.OrderExtNum,
@@ -700,7 +715,7 @@ func (s *StorageService) CreateWithdrawn(ctx context.Context, p models.Person, o
 		Scan(&opentryID)
 
 	if err != nil {
-		return models.Opentry{}, fmt.Errorf("CAN'T INSERT OPENTRY")
+		return models.Opentry{}, fmt.Errorf("CAN'T INSERT OPENTRY:[%w]", err)
 	}
 
 	opentry.ID = opentryID
@@ -708,13 +723,12 @@ func (s *StorageService) CreateWithdrawn(ctx context.Context, p models.Person, o
 	return opentry, nil
 }
 func (s *StorageService) GetWithdrawals(ctx context.Context, p models.Person) ([]models.Opentry, error) {
+	var rows []models.Opentry
 	accts, err := s.getPersonAccts(ctx, p)
 
 	if err != nil {
 		return nil, fmt.Errorf("CAN'T FIND PERSON ACCT [%v]", err)
 	}
-
-	rows := make([]models.Opentry, DefSliceLength)
 
 	for _, acct := range accts {
 		if acct.Sign == AcctSidePassive {
@@ -785,6 +799,10 @@ func (s *StorageService) AddFunds(ctx context.Context, p models.Person, o models
 
 	var opentryID uint
 
+	if sum <= 0 {
+		return models.Opentry{}, errors.New("ZERO SUMM")
+	}
+
 	accts, err := s.getPersonAccts(ctx, p)
 
 	if err != nil {
@@ -800,8 +818,8 @@ func (s *StorageService) AddFunds(ctx context.Context, p models.Person, o models
 	opentry := models.Opentry{
 		Person:      p.GetID(),
 		Porder:      o.ID,
-		Status:      StatusProcessed,
 		OrderExtNum: o.Extnum,
+		Status:      StatusProcessed,
 		Opdate:      time.Now(),
 		Acctdb:      "30102810000000000001",
 		Acctcr:      acct.Acct,
@@ -810,12 +828,12 @@ func (s *StorageService) AddFunds(ctx context.Context, p models.Person, o models
 		Updt:        time.Now(),
 	}
 
-	err = s.db.QueryRowContext(ctx, `INSERT INTO opentry (person,porder,orderextnum,opdate,acctdb,acctcr,sum1,crdt,updt) 
-	                                 VALUES($1,$2,$3,$4) RETURNING id`,
+	err = s.db.QueryRowContext(ctx, `INSERT INTO opentry (person,porder,status,orderextnum,opdate,acctdb,acctcr,sum1,crdt,updt) 
+	                                 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
 		opentry.Person,
 		opentry.Porder,
-		opentry.OrderExtNum,
 		opentry.Status,
+		opentry.OrderExtNum,
 		opentry.Opdate,
 		opentry.Acctdb,
 		opentry.Acctcr,
@@ -834,7 +852,7 @@ func (s *StorageService) AddFunds(ctx context.Context, p models.Person, o models
 }
 
 func (s *StorageService) OrderSetProccessStatus(ctx context.Context, o models.POrder) error {
-	_, err := s.db.ExecContext(ctx, "UPDATE order SET status=$1 WHERE id=$2", StatusProcessing, o.ID)
+	_, err := s.db.ExecContext(ctx, "UPDATE porder SET status=$1,updt=$2 WHERE id=$3", StatusProcessing, time.Now(), o.ID)
 	if err != nil {
 		return fmt.Errorf("CAN'T UPDATE STATUS [%w]", err)
 	}

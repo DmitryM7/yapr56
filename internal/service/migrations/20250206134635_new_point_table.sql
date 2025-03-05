@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS opentry (
     person INTEGER,
     porder INTEGER,
     status VARCHAR(255),
+    orderextnum NUMERIC(20,0),
     opdate DATE,
     acctdb VARCHAR(20),
     acctcr VARCHAR(20),

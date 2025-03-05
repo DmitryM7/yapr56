@@ -44,7 +44,11 @@ func run() error {
 		return err
 	}
 
-	client, err := accrualclient.NewClient(config.AcrBndAdr + "/" + config.AcrPoint)
+	client, err := accrualclient.NewClient("http://" + config.AcrBndAdr + config.AcrPoint)
+
+	if err != nil {
+		return err
+	}
 
 	for _, order := range orders {
 		err := storage.OrderSetProccessStatus(ctx, order)
@@ -56,7 +60,8 @@ func run() error {
 		resp, err := client.Get(order)
 
 		if err != nil {
-			return err
+			logger.Infoln(err)
+			continue
 		}
 
 		person, err := storage.GetPersonByID(ctx, int(order.Pid))
