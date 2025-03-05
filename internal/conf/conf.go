@@ -28,7 +28,7 @@ func (s *Config) ParseFlags() {
 }
 
 func (s *Config) ParseEnv() {
-	if env := os.Getenv("SERVER_ADDRESS"); env != "" {
+	if env := os.Getenv("RUN_ADDRESS"); env != "" {
 		s.BndAdr = env
 	}
 
@@ -40,7 +40,7 @@ func (s *Config) ParseEnv() {
 		s.AcrPoint = env
 	}
 
-	if env := os.Getenv("DATABASE_DSN"); env != "" {
+	if env := os.Getenv("DATABASE_URI"); env != "" {
 		s.DSN = env
 	}
 
