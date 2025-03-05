@@ -2,6 +2,7 @@ package conf
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"strconv"
 	"time"
@@ -19,6 +20,11 @@ type Config struct {
 }
 
 func (s *Config) ParseFlags() {
+
+	fmt.Println("--- PARAMS ---")
+	fmt.Println(os.Args)
+	fmt.Println("---  ---")
+
 	flag.StringVar(&s.BndAdr, "a", "localhost:8080", "host where server is run")
 	flag.StringVar(&s.DSN, "d", "", "database dsn")
 	flag.StringVar(&s.SecretKey, "k", "", "Secret key for JWT")
@@ -28,6 +34,11 @@ func (s *Config) ParseFlags() {
 }
 
 func (s *Config) ParseEnv() {
+
+	fmt.Println("--- ENV ---")
+	fmt.Println(os.Environ())
+	fmt.Println("---  ---")
+
 	if env := os.Getenv("RUN_ADDRESS"); env != "" {
 		s.BndAdr = env
 	}
