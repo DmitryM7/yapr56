@@ -43,7 +43,7 @@ func run() error {
 		return err
 	}
 
-	client, err := accrualclient.NewClient("http://" + config.AcrBndAdr + config.AcrPoint)
+	client, err := accrualclient.NewClient(config.AcrBndAdr + config.AcrPoint)
 
 	if err != nil {
 		return err

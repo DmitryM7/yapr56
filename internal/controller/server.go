@@ -54,6 +54,8 @@ func (s *Srv) actMiddleWare(next http.Handler) http.Handler {
 		if _, e := s.NoAuthActions[r.URL.Path]; !e {
 			cookie, err := r.Cookie("token")
 
+			s.Log.Debugln(r.Cookies())
+
 			if err != nil {
 				s.Log.Debugln("CAN'T READ COOKIE:", err)
 				w.WriteHeader(http.StatusUnauthorized)
