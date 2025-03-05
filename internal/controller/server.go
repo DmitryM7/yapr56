@@ -45,7 +45,7 @@ type (
 	contextParam string
 )
 
-const tokenName = "session_token"
+const tokenName = "token"
 
 func (s *Srv) actMiddleWare(next http.Handler) http.Handler {
 	f := func(w http.ResponseWriter, r *http.Request) {
@@ -316,6 +316,7 @@ func (s *Srv) actOrders(w http.ResponseWriter, r *http.Request) {
 
 		s.Log.Infoln(orders)
 
+		w.Header().Set("Content-type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, err = w.Write(result)
 
@@ -371,6 +372,7 @@ func (s *Srv) actAcctBalance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Content-type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, err = w.Write(output)
 
@@ -507,7 +509,7 @@ func (s *Srv) actAcctStatement(w http.ResponseWriter, r *http.Request) {
 		s.Log.Warnln("CAN'T MARSHAL RESPONSE: [%v]", err)
 		return
 	}
-
+	w.Header().Set("Content-type", "application/json")
 	_, err = w.Write(output)
 
 	if err != nil {
