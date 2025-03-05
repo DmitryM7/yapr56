@@ -44,7 +44,7 @@ func run() error {
 		ReadTimeout:  30 * time.Second,
 	}
 
-	logger.Infoln("START...")
+	logger.Infoln("START...", time.Now().Add(config.SecretKeyTime))
 	if errServ := server.ListenAndServe(); errServ != nil {
 		return fmt.Errorf("CAN'T EXECUTE SERVER [%w]", errServ)
 	}

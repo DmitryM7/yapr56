@@ -146,7 +146,7 @@ func (s *Srv) actUserRegister(w http.ResponseWriter, r *http.Request) {
 		Name:    tokenName,
 		Value:   jwtToken,
 		Path:    "/",
-		Expires: time.Now().Add(s.JwtService.TokenExpired() * time.Minute),
+		Expires: time.Now().Add(s.JwtService.TokenExpired()),
 	})
 
 	w.WriteHeader(http.StatusOK)
@@ -205,7 +205,7 @@ func (s *Srv) actUserLogin(w http.ResponseWriter, r *http.Request) {
 		Name:    tokenName,
 		Value:   jwtToken,
 		Path:    "/",
-		Expires: time.Now().Add(s.JwtService.TokenExpired() * time.Minute),
+		Expires: time.Now().Add(s.JwtService.TokenExpired()),
 	})
 	w.WriteHeader(http.StatusOK)
 }

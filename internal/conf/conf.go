@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const defaultSecretKeyTime = 25
+const defaultSecretKeyTime = 35
 
 type Config struct {
 	BndAdr        string
