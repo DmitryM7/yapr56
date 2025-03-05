@@ -21,7 +21,7 @@ type Config struct {
 func (s *Config) ParseFlags() {
 	flag.StringVar(&s.BndAdr, "a", "localhost:8080", "host where server is run")
 	flag.StringVar(&s.DSN, "d", "", "database dsn")
-	flag.StringVar(&s.SecretKey, "k", "", "Secret key for JWT")
+	flag.StringVar(&s.SecretKey, "k", "DEFAULT_SECRET_KEY", "Secret key for JWT")
 	flag.StringVar(&s.AcrBndAdr, "aa", "localhost:8080", "Host where accural service run.")
 	flag.StringVar(&s.AcrPoint, "ap", "/api/orders", "Accurual point")
 	flag.DurationVar(&s.SecretKeyTime, "kt", defaultSecretKeyTime*time.Minute, "Time secret key in minutes")

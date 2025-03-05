@@ -45,6 +45,8 @@ type (
 	contextParam string
 )
 
+const tokenName = "user_token"
+
 func (s *Srv) actMiddleWare(next http.Handler) http.Handler {
 	f := func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
@@ -52,7 +54,7 @@ func (s *Srv) actMiddleWare(next http.Handler) http.Handler {
 		s.Log.Debugln("URL PATH IS:", r.URL.Path)
 
 		if _, e := s.NoAuthActions[r.URL.Path]; !e {
-			cookie, err := r.Cookie("token")
+			cookie, err := r.Cookie(tokenName)
 
 			s.Log.Debugln(r.Cookies())
 
@@ -141,7 +143,7 @@ func (s *Srv) actUserRegister(w http.ResponseWriter, r *http.Request) {
 	s.Log.Debugln(fmt.Sprintf("PERSON WAS CREATE id=%d,login=%s", person.ID, person.Login))
 
 	http.SetCookie(w, &http.Cookie{
-		Name:    "token",
+		Name:    tokenName,
 		Value:   jwtToken,
 		Expires: time.Now().Add(s.JwtService.TokenExpired() * time.Minute),
 	})
@@ -198,7 +200,7 @@ func (s *Srv) actUserLogin(w http.ResponseWriter, r *http.Request) {
 	s.Log.Infoln("NOW PERSON IS ", person.ID)
 
 	http.SetCookie(w, &http.Cookie{
-		Name:    "token",
+		Name:    tokenName,
 		Value:   jwtToken,
 		Expires: time.Now().Add(s.JwtService.TokenExpired() * time.Minute),
 	})
