@@ -45,7 +45,7 @@ type (
 	contextParam string
 )
 
-const tokenName = "user_token"
+const tokenName = "session_token"
 
 func (s *Srv) actMiddleWare(next http.Handler) http.Handler {
 	f := func(w http.ResponseWriter, r *http.Request) {
@@ -142,13 +142,14 @@ func (s *Srv) actUserRegister(w http.ResponseWriter, r *http.Request) {
 
 	s.Log.Debugln(fmt.Sprintf("PERSON WAS CREATE id=%d,login=%s", person.ID, person.Login))
 
-	w.WriteHeader(http.StatusOK)
-
 	http.SetCookie(w, &http.Cookie{
 		Name:    tokenName,
 		Value:   jwtToken,
+		Path:    "/",
 		Expires: time.Now().Add(s.JwtService.TokenExpired() * time.Minute),
 	})
+
+	w.WriteHeader(http.StatusOK)
 
 }
 func (s *Srv) actUserLogin(w http.ResponseWriter, r *http.Request) {
@@ -200,14 +201,13 @@ func (s *Srv) actUserLogin(w http.ResponseWriter, r *http.Request) {
 
 	s.Log.Infoln("NOW PERSON IS ", person.ID)
 
-	w.WriteHeader(http.StatusOK)
-
 	http.SetCookie(w, &http.Cookie{
 		Name:    tokenName,
 		Value:   jwtToken,
+		Path:    "/",
 		Expires: time.Now().Add(s.JwtService.TokenExpired() * time.Minute),
 	})
-
+	w.WriteHeader(http.StatusOK)
 }
 func (s *Srv) actOrdersUpload(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
