@@ -1,6 +1,7 @@
 package accrualclient
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,7 +15,7 @@ import (
 
 type (
 	AccrualClient struct {
-		Url string
+		URL string
 	}
 
 	ErrBusyPleaseWait struct {
@@ -37,16 +38,17 @@ func (e ErrBusyPleaseWait) Error() string {
 	return "BUSY PLEASE WAIT:" + e.err.Error()
 }
 
-func (c *AccrualClient) Get(o models.POrder) (Responce, error) {
-
+func (c *AccrualClient) Get(o models.POrder) (Response, error) {
 	extnum := strconv.Itoa(o.Extnum)
 
-	req, err := http.NewRequest(http.MethodGet, c.Url+"/"+extnum, nil)
+	ctx := context.Background()
 
-	fmt.Println(c.Url + "/" + extnum)
+	req, err := http.NewRequest(http.MethodGet, c.URL+"/"+extnum, http.NoBody)
+
+	req = req.WithContext(ctx)
 
 	if err != nil {
-		return Responce{}, fmt.Errorf("CAN'T CREATE NEW REQUEST: [%w]", err)
+		return Response{}, fmt.Errorf("CAN'T CREATE NEW REQUEST: [%w]", err)
 	}
 
 	client := &http.Client{}
@@ -54,7 +56,7 @@ func (c *AccrualClient) Get(o models.POrder) (Responce, error) {
 	resp, err := client.Do(req)
 
 	if err != nil {
-		return Responce{}, fmt.Errorf("CAN'T DO REQUEST: [%w]", err)
+		return Response{}, fmt.Errorf("CAN'T DO REQUEST: [%w]", err)
 	}
 
 	defer resp.Body.Close()
@@ -62,52 +64,50 @@ func (c *AccrualClient) Get(o models.POrder) (Responce, error) {
 	body, err := io.ReadAll(resp.Body)
 
 	if err != nil {
-		return Responce{}, fmt.Errorf("CAN'T READ BODY: [%w]", err)
+		return Response{}, fmt.Errorf("CAN'T READ BODY: [%w]", err)
 	}
 
 	fmt.Println(resp.StatusCode)
 
 	switch resp.StatusCode {
-	case 204:
+	case http.StatusNoContent:
 
-	case 429:
+	case http.StatusTooManyRequests:
 		if dur, ok := resp.Header["Retry-After"]; ok {
 			if len(dur) > 0 {
 				duration, err := strconv.Atoi(dur[0])
 				if err != nil {
-					return Responce{}, fmt.Errorf("BUSY BUT CAN'T UNDERSTAND HOW MUCH")
+					return Response{}, fmt.Errorf("BUSY BUT CAN'T UNDERSTAND HOW MUCH")
 				}
 
-				return Responce{}, ErrBusyPleaseWait{
+				return Response{}, ErrBusyPleaseWait{
 					err:      errors.New(string(body)),
 					Duration: time.Duration(duration),
 				}
 			}
 		}
-	case 200:
-		output := Responce{}
+	case http.StatusOK:
+		output := Response{}
 		fmt.Println("---->")
 		fmt.Println(string(body))
 		fmt.Println("<----")
 		err = json.Unmarshal(body, &output)
 
 		if err != nil {
-			return Responce{}, fmt.Errorf("CAN'T UNMARSHAL BODY:>" + string(body) + "<")
+			return Response{}, fmt.Errorf("CAN'T UNMARSHAL BODY:%s", string(body))
 		}
 
 		if output.Status != StatusInvalid && output.Status != StatusProcessed {
-			return Responce{}, ErrNotFinalStatus
+			return Response{}, ErrNotFinalStatus
 		}
 
 		return output, nil
-
 	}
-	return Responce{}, fmt.Errorf("UNWORK STATUS: " + string(resp.StatusCode))
+	return Response{}, fmt.Errorf("UNWORK STATUS: %s", strconv.Itoa(resp.StatusCode))
 }
 
 func NewClient(url string) (AccrualClient, error) {
-
 	return AccrualClient{
-		Url: url,
+		URL: url,
 	}, nil
 }

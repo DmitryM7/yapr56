@@ -16,16 +16,15 @@ type ISenderStorage interface {
 	GetOrderToSend(ctx context.Context) ([]models.POrder, error)
 }
 
-func main() {
+const MaxOrderToSendCount = 10
 
+func main() {
 	if err := run(); err != nil {
 		log.Panicln("CAN'T RUN MAIN PROCEDURE:", err)
 	}
-
 }
 
 func run() error {
-
 	config := conf.NewConf()
 
 	logger := logger.NewLg()
@@ -38,7 +37,7 @@ func run() error {
 
 	ctx := context.Background()
 
-	orders, err := storage.GetOrderToSend(ctx, 10)
+	orders, err := storage.GetOrderToSend(ctx, MaxOrderToSendCount)
 
 	if err != nil {
 		return err
@@ -77,7 +76,6 @@ func run() error {
 		}
 
 		logger.Infoln("Accrual update:" + strconv.Itoa(int(opentry.ID)))
-
 	}
 
 	return nil

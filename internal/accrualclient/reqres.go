@@ -1,6 +1,6 @@
 package accrualclient
 
-type Responce struct {
+type Response struct {
 	ExtNum  string `json:"order"`
 	Status  string `json:"status"`
 	Accrual int    `json:"accrual"`

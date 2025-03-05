@@ -47,7 +47,6 @@ type (
 
 func (s *Srv) actMiddleWare(next http.Handler) http.Handler {
 	f := func(w http.ResponseWriter, r *http.Request) {
-
 		ctx := r.Context()
 
 		s.Log.Debugln("URL PATH IS:", r.URL.Path)
@@ -61,7 +60,7 @@ func (s *Srv) actMiddleWare(next http.Handler) http.Handler {
 				return
 			}
 
-			personId, err := s.JwtService.UnloadUserIDJwt(cookie.Value)
+			CurrPersonID, err := s.JwtService.UnloadUserIDJwt(cookie.Value)
 
 			if err != nil {
 				s.Log.Debugln("CAN'T UNLOAD ID FROM JWT:", err)
@@ -69,8 +68,7 @@ func (s *Srv) actMiddleWare(next http.Handler) http.Handler {
 				return
 			}
 
-			ctx = context.WithValue(ctx, contextParam("CurrPersonID"), personId)
-
+			ctx = context.WithValue(ctx, contextParam("CurrPersonID"), CurrPersonID)
 		}
 
 		next.ServeHTTP(w, r.WithContext(ctx))
@@ -206,7 +204,6 @@ func (s *Srv) actUserLogin(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 func (s *Srv) actOrdersUpload(w http.ResponseWriter, r *http.Request) {
-
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -237,14 +234,13 @@ func (s *Srv) actOrdersUpload(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	if currPersonId, ok := ctx.Value(contextParam("CurrPersonID")).(int); ok {
-
-		s.Log.Infoln("CurrPerson is ", currPersonId)
-		currPerson, err := s.Service.GetPersonByID(ctx, currPersonId)
+	if CurrPersonID, ok := ctx.Value(contextParam("CurrPersonID")).(int); ok {
+		s.Log.Infoln("CurrPerson is ", CurrPersonID)
+		currPerson, err := s.Service.GetPersonByID(ctx, CurrPersonID)
 
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
-			s.Log.Infoln("CAN'T FIND PERSON WITH ID=", currPersonId)
+			s.Log.Infoln("CAN'T FIND PERSON WITH ID=", CurrPersonID)
 			return
 		}
 
@@ -255,7 +251,6 @@ func (s *Srv) actOrdersUpload(w http.ResponseWriter, r *http.Request) {
 		order, err = s.Service.CreateOrder(ctx, currPerson, order)
 
 		if err != nil {
-
 			if errors.Is(err, service.ErrNoLuhnNumber) {
 				w.WriteHeader(http.StatusUnprocessableEntity)
 				s.Log.Infoln("INCORRECT ORDER NUMBER:", err)
@@ -277,21 +272,18 @@ func (s *Srv) actOrdersUpload(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 			s.Log.Errorln(err)
 			return
-
 		}
 
 		w.WriteHeader(http.StatusAccepted)
-
 	}
-
 }
 
 func (s *Srv) actOrders(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	if currPersonId, ok := ctx.Value(contextParam("CurrPersonID")).(int); ok {
+	if CurrPersonID, ok := ctx.Value(contextParam("CurrPersonID")).(int); ok {
 		person := models.Person{
-			ID: uint(currPersonId),
+			ID: uint(CurrPersonID),
 		}
 
 		orders, err := s.Service.GetOrders(ctx, person)
@@ -325,16 +317,13 @@ func (s *Srv) actOrders(w http.ResponseWriter, r *http.Request) {
 			s.Log.Warnln("CAN'T WRITE BODY IN ORDER LIST", err)
 			return
 		}
-
 	}
-
 }
 
 func (s *Srv) actAcctBalance(w http.ResponseWriter, r *http.Request) {
-
 	ctx := r.Context()
 
-	currPersonId, ok := ctx.Value(contextParam("CurrPersonID")).(int)
+	CurrPersonID, ok := ctx.Value(contextParam("CurrPersonID")).(int)
 
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -342,7 +331,7 @@ func (s *Srv) actAcctBalance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	person, err := s.Service.GetPersonByID(ctx, currPersonId)
+	person, err := s.Service.GetPersonByID(ctx, CurrPersonID)
 
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -384,14 +373,12 @@ func (s *Srv) actAcctBalance(w http.ResponseWriter, r *http.Request) {
 		s.Log.Errorln("CAN'T WRITE DATA TO BODY:[%v]", err)
 		return
 	}
-
 }
 
 func (s *Srv) actWithdraw(w http.ResponseWriter, r *http.Request) {
-
 	ctx := r.Context()
 
-	currPersonId, ok := ctx.Value(contextParam("CurrPersonID")).(int)
+	currPersonID, ok := ctx.Value(contextParam("CurrPersonID")).(int)
 
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -399,7 +386,7 @@ func (s *Srv) actWithdraw(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	person, err := s.Service.GetPersonByID(ctx, currPersonId)
+	person, err := s.Service.GetPersonByID(ctx, currPersonID)
 
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -440,13 +427,11 @@ func (s *Srv) actWithdraw(w http.ResponseWriter, r *http.Request) {
 	order, err := s.Service.GetOrder(ctx, models.POrder{Extnum: extnum})
 
 	if err != nil {
-		//w.WriteHeader(http.StatusUnprocessableEntity)
-		s.Log.Warnln("CAN'T FIND ORDER WITH NUM " + string(input.Order))
+		s.Log.Warnln("CAN'T FIND ORDER WITH NUM:", input.Order)
 
 		order = models.POrder{
 			Extnum: extnum,
 		}
-		//return
 	}
 
 	_, err = s.Service.CreateWithdrawn(ctx, person, order, input.Sum)
@@ -461,17 +446,15 @@ func (s *Srv) actWithdraw(w http.ResponseWriter, r *http.Request) {
 			s.Log.Warnln("CAN'T CREATE PAYMENT:", err)
 			return
 		}
-
 	}
 
 	w.WriteHeader(http.StatusOK)
-
 }
 
 func (s *Srv) actAcctStatement(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	currPersonId, ok := ctx.Value(contextParam("CurrPersonID")).(int)
+	currPersonID, ok := ctx.Value(contextParam("CurrPersonID")).(int)
 
 	if !ok {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -479,7 +462,7 @@ func (s *Srv) actAcctStatement(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	person, err := s.Service.GetPersonByID(ctx, currPersonId)
+	person, err := s.Service.GetPersonByID(ctx, currPersonID)
 
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -490,18 +473,17 @@ func (s *Srv) actAcctStatement(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		s.Log.Warnln("CAN'T GET STATMENT: [%v]", err)
+		s.Log.Warnln("CAN'T GET STATEMENT: [%v]", err)
 		return
-
 	}
 
 	if len(rows) == 0 {
 		w.WriteHeader(http.StatusNoContent)
-		s.Log.Warnln("STATMENT IS EMPTY")
+		s.Log.Warnln("STATEMENT IS EMPTY")
 		return
 	}
 
-	res := make([]WithdrawalsResponce, 10)
+	res := []WithdrawalsResponce{}
 
 	for _, opentry := range rows {
 		wr := WithdrawalsResponce{
@@ -516,7 +498,7 @@ func (s *Srv) actAcctStatement(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		s.Log.Warnln("CAN'T MARSHAL RESPONCE: [%v]", err)
+		s.Log.Warnln("CAN'T MARSHAL RESPONSE: [%v]", err)
 		return
 	}
 
@@ -534,7 +516,6 @@ func (s *Srv) actAcctStatement(w http.ResponseWriter, r *http.Request) {
 func NewServer(log logger.Lg,
 	serv IStorage,
 	jwt IJwtService) (*Srv, error) {
-
 	var NoAuthActions = map[string]string{
 		"/api/user/register": "/api/user/register",
 		"/api/user/login":    "/api/user/login",

@@ -68,7 +68,7 @@ func (s *StorageService) splitToDigitRevers(num int) []int {
 
 	for testNum > 0 {
 		digitArray = append(digitArray, testNum%Base10)
-		testNum = (int)(testNum / Base10)
+		testNum /= Base10
 	}
 
 	return digitArray
@@ -355,7 +355,8 @@ func (s *StorageService) GetPersonByID(ctx context.Context, id int) (models.Pers
 	return person, nil
 }
 
-func (s *StorageService) getMoveByDb(ctx context.Context, acct string, opdate time.Time) ([]models.Opentry, error) { //nolint:stylecheck //It's debit neither DB
+//nolint:stylecheck //It's debit neither DB
+func (s *StorageService) getMoveByDb(ctx context.Context, acct string, opdate time.Time) ([]models.Opentry, error) {
 	var (
 		res    []models.Opentry
 		sum1   sql.NullInt64
@@ -447,7 +448,6 @@ func (s *StorageService) getMoveByCr(ctx context.Context, acct string, opdate ti
 	}
 
 	for rows.Next() {
-
 		opentry := models.Opentry{}
 		err := rows.Scan(
 			&opentry.ID,
@@ -563,7 +563,6 @@ func (s *StorageService) calcBalanceByAcct(ctx context.Context, acct models.Acct
 }
 
 func (s *StorageService) getPersonAccts(ctx context.Context, p models.Person) ([]models.Acct, error) {
-
 	var res []models.Acct
 
 	rows, err := s.db.QueryContext(ctx, "SELECT id,acct,person,sign,status,crdt,updt FROM acct WHERE person=$1", p.GetID())
@@ -780,12 +779,16 @@ func (s *StorageService) GetOrderToSend(ctx context.Context, limit int) ([]model
 
 	for rows.Next() {
 		order := models.POrder{}
-		rows.Scan(&order.ID,
+		err := rows.Scan(&order.ID,
 			&order.Pid,
 			&order.Extnum,
 			&status,
 			&order.Crdt,
 			&order.Updt)
+
+		if err != nil {
+			return nil, fmt.Errorf("CAN'T SCAN porder [%w]", err)
+		}
 
 		order.Status = status.String
 
@@ -796,7 +799,6 @@ func (s *StorageService) GetOrderToSend(ctx context.Context, limit int) ([]model
 }
 
 func (s *StorageService) AddFunds(ctx context.Context, p models.Person, o models.POrder, sum int) (models.Opentry, error) {
-
 	var opentryID uint
 
 	if sum <= 0 {
@@ -860,7 +862,6 @@ func (s *StorageService) OrderSetProccessStatus(ctx context.Context, o models.PO
 }
 
 func NewStorageService(log logger.Lg, dsn string) (StorageService, error) {
-
 	s := StorageService{
 		DatabaseDSN: dsn,
 	}

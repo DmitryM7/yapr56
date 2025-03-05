@@ -120,13 +120,11 @@ func TestSrv_actUserRegister(t *testing.T) {
 			res := tt.args.w.Result()
 
 			assert.Equal(t, tt.want.StatusCode, res.StatusCode)
-
 		})
 	}
 }
 
 func TestSrv_actUserLogin(t *testing.T) {
-
 	type args struct {
 		w      *httptest.ResponseRecorder
 		r      *http.Request
@@ -292,7 +290,6 @@ func TestSrv_actOrdersUpload(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-
 			ctx := context.WithValue(context.Background(), contextParam("CurrPersonID"), 1)
 
 			tt.args.r = httptest.NewRequest(tt.args.method, "/api/user/orders", strings.NewReader(tt.args.ExtNum)).WithContext(ctx)
