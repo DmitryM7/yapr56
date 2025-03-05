@@ -20,7 +20,6 @@ type Config struct {
 }
 
 func (s *Config) ParseFlags() {
-
 	fmt.Println("--- PARAMS ---")
 	fmt.Println(os.Args)
 	fmt.Println("---  ---")
@@ -34,7 +33,6 @@ func (s *Config) ParseFlags() {
 }
 
 func (s *Config) ParseEnv() {
-
 	fmt.Println("--- ENV ---")
 	fmt.Println(os.Environ())
 	fmt.Println("---  ---")
