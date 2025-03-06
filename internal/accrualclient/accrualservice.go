@@ -12,7 +12,7 @@ import (
 
 const (
 	MaxOrderToSendCount = 10
-	WaitTime            = 30
+	WaitTime            = 5
 )
 
 type (
