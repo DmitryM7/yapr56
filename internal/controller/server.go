@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -51,7 +52,7 @@ func (s *Srv) actMiddleWare(next http.Handler) http.Handler {
 	f := func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
-		s.Log.Debugln("URL PATH IS:", r.URL.Path)
+		s.Log.Debugln("END POINT IS:", r.Method, " ", r.URL.Path)
 
 		if _, e := s.NoAuthActions[r.URL.Path]; !e {
 			cookie, err := r.Cookie(tokenName)
@@ -72,6 +73,20 @@ func (s *Srv) actMiddleWare(next http.Handler) http.Handler {
 
 			ctx = context.WithValue(ctx, contextParam("CurrPersonID"), CurrPersonID)
 		}
+
+		buf, err := io.ReadAll(r.Body)
+
+		if err != nil {
+			s.Log.Errorln("CAN'T READ BODY")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		readedBody := io.NopCloser(bytes.NewBuffer(buf))
+
+		r.Body = readedBody
+
+		s.Log.Debug("BODY:", string(buf))
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}
@@ -324,8 +339,6 @@ func (s *Srv) actOrders(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		s.Log.Infoln(orders)
-
 		w.WriteHeader(http.StatusOK)
 		_, err = w.Write(result)
 
@@ -444,7 +457,7 @@ func (s *Srv) actWithdraw(w http.ResponseWriter, r *http.Request) {
 	order, err := s.Service.GetOrder(ctx, models.POrder{Extnum: extnum})
 
 	if err != nil {
-		s.Log.Warnln("CAN'T FIND ORDER WITH NUM:", input.Order)
+		s.Log.Infoln("CAN'T FIND ORDER WITH NUM:", input.Order)
 
 		order = models.POrder{
 			Extnum: extnum,
@@ -456,7 +469,7 @@ func (s *Srv) actWithdraw(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, service.ErrRedSaldo) {
 			w.WriteHeader(http.StatusPaymentRequired)
-			s.Log.Warnln("RED SALDO:", err)
+			s.Log.Infoln("RED SALDO:", err)
 			return
 		} else {
 			w.WriteHeader(http.StatusInternalServerError)
