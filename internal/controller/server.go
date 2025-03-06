@@ -56,8 +56,6 @@ func (s *Srv) actMiddleWare(next http.Handler) http.Handler {
 		if _, e := s.NoAuthActions[r.URL.Path]; !e {
 			cookie, err := r.Cookie(tokenName)
 
-			s.Log.Debugln(r.Cookies())
-
 			if err != nil {
 				s.Log.Debugln("CAN'T READ COOKIE:", err)
 				w.WriteHeader(http.StatusUnauthorized)
@@ -306,7 +304,18 @@ func (s *Srv) actOrders(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		result, err := json.Marshal(orders)
+		output := []OrderResponse{}
+
+		for _, order := range orders {
+			output = append(output, OrderResponse{
+				Number:     strconv.Itoa(order.Extnum),
+				Status:     order.Status,
+				Accrual:    float32(order.Accrual),
+				UploadedAt: order.Crdt.Format("2006-01-02T15:05:05-0700"),
+			})
+		}
+
+		result, err := json.Marshal(output)
 
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
