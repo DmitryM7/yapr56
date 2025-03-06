@@ -831,7 +831,13 @@ func (s *StorageService) AddFunds(ctx context.Context, p models.Person, o models
 		Updt:        time.Now(),
 	}
 
-	err = s.db.QueryRowContext(ctx, `INSERT INTO opentry (person,porder,status,orderextnum,opdate,acctdb,acctcr,sum1,crdt,updt) 
+	tx, err := s.db.Begin()
+
+	if err != nil {
+		return models.Opentry{}, errors.New("CAN'T OPEN TRANSACTION")
+	}
+
+	err = tx.QueryRowContext(ctx, `INSERT INTO opentry (person,porder,status,orderextnum,opdate,acctdb,acctcr,sum1,crdt,updt) 
 	                                 VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
 		opentry.Person,
 		opentry.Porder,
@@ -846,10 +852,20 @@ func (s *StorageService) AddFunds(ctx context.Context, p models.Person, o models
 		Scan(&opentryID)
 
 	if err != nil {
+		_ = tx.Rollback()
 		return models.Opentry{}, fmt.Errorf("CAN'T INSERT OPENTRY [%v]", err)
 	}
 
 	opentry.ID = opentryID
+
+	_, err = tx.ExecContext(ctx, "UPDATE porder SET accrual=$1 WHERE id=$2", sum, o.ID)
+
+	if err != nil {
+		_ = tx.Rollback()
+		return models.Opentry{}, errors.New("CAN'T UPDATE ORDER")
+	}
+
+	_ = tx.Commit()
 
 	return opentry, nil
 }
