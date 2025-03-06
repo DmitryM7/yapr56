@@ -33,6 +33,7 @@ type (
 func (a *Accrualservice) Run() {
 	go func() {
 		for {
+			a.Log.Infoln("GET INFO FROM ACCRUAL...")
 			err := a.Calc()
 			if err != nil {
 				a.Log.Warnln("CAN'T GET ACCRUAL INFO:" + err.Error())
@@ -50,6 +51,8 @@ func (a *Accrualservice) Calc() error {
 	if err != nil {
 		return err
 	}
+
+	a.Log.Infoln("ORDER TO WORK:", string(len(orders)))
 
 	for _, order := range orders {
 		err := a.Service.OrderSetProccessStatus(ctx, order)
