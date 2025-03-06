@@ -29,10 +29,10 @@ type (
 		GetOrder(ctx context.Context, order models.POrder) (models.POrder, error)
 		GetPersonByID(ctx context.Context, id int) (models.Person, error)
 		GetOrders(ctx context.Context, p models.Person) ([]models.POrder, error)
-		GetBalance(ctx context.Context, p models.Person) (int, error)
-		Getwithdrawn(ctx context.Context, p models.Person) (int, error)
+		GetBalance(ctx context.Context, p models.Person) (float64, error)
+		Getwithdrawn(ctx context.Context, p models.Person) (float64, error)
 		GetWithdrawals(ctx context.Context, p models.Person) ([]models.Opentry, error)
-		CreateWithdrawn(ctx context.Context, p models.Person, o models.POrder, sum int) (models.Opentry, error)
+		CreateWithdrawn(ctx context.Context, p models.Person, o models.POrder, sum float64) (models.Opentry, error)
 	}
 
 	Srv struct {
@@ -371,8 +371,8 @@ func (s *Srv) actAcctBalance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	output, err := json.Marshal(BalanceResponce{
-		Current:   float32(balance),
-		Withdrawn: float32(withdrawn),
+		Current:   balance,
+		Withdrawn: withdrawn,
 	})
 
 	if err != nil {

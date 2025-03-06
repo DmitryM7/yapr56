@@ -13,18 +13,18 @@ type (
 	}
 
 	BalanceResponce struct {
-		Current   float32 `json:"current"`
-		Withdrawn float32 `json:"withdrawn"`
+		Current   float64 `json:"current"`
+		Withdrawn float64 `json:"withdrawn"`
 	}
 
 	WithdrawRequest struct {
-		Order string `json:"order"`
-		Sum   int    `json:"sum"`
+		Order string  `json:"order"`
+		Sum   float64 `json:"sum"`
 	}
 
 	WithdrawalsResponce struct {
 		Order       int       `json:"order"`
-		Sum         int       `json:"sum"`
+		Sum         float64   `json:"sum"`
 		ProcessedAt time.Time `json:"processed_at"`
 	}
 

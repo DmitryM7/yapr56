@@ -11,8 +11,8 @@ type Opentry struct {
 	Opdate      time.Time
 	Acctdb      string
 	Acctcr      string
-	Sum1        int
-	Sum2        int
+	Sum1        float64
+	Sum2        float64
 	Crdt        time.Time
 	Updt        time.Time
 }

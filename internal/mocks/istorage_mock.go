@@ -66,7 +66,7 @@ func (mr *MockIStorageMockRecorder) CreatePeson(arg0, arg1 interface{}) *gomock.
 }
 
 // CreateWithdrawn mocks base method.
-func (m *MockIStorage) CreateWithdrawn(arg0 context.Context, arg1 models.Person, arg2 models.POrder, arg3 int) (models.Opentry, error) {
+func (m *MockIStorage) CreateWithdrawn(arg0 context.Context, arg1 models.Person, arg2 models.POrder, arg3 float64) (models.Opentry, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateWithdrawn", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(models.Opentry)
@@ -81,10 +81,10 @@ func (mr *MockIStorageMockRecorder) CreateWithdrawn(arg0, arg1, arg2, arg3 inter
 }
 
 // GetBalance mocks base method.
-func (m *MockIStorage) GetBalance(arg0 context.Context, arg1 models.Person) (int, error) {
+func (m *MockIStorage) GetBalance(arg0 context.Context, arg1 models.Person) (float64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetBalance", arg0, arg1)
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(float64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -171,10 +171,10 @@ func (mr *MockIStorageMockRecorder) GetWithdrawals(arg0, arg1 interface{}) *gomo
 }
 
 // Getwithdrawn mocks base method.
-func (m *MockIStorage) Getwithdrawn(arg0 context.Context, arg1 models.Person) (int, error) {
+func (m *MockIStorage) Getwithdrawn(arg0 context.Context, arg1 models.Person) (float64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Getwithdrawn", arg0, arg1)
-	ret0, _ := ret[0].(int)
+	ret0, _ := ret[0].(float64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

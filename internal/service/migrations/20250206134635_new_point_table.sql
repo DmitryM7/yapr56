@@ -21,8 +21,8 @@ CREATE TABLE IF NOT EXISTS opentry (
     opdate DATE,
     acctdb VARCHAR(20),
     acctcr VARCHAR(20),
-    sum1 INTEGER,
-    sum2 INTEGER,    
+    sum1 NUMERIC(18,6),
+    sum2 NUMERIC(18,6),    
     crdt TIMESTAMP,
     updt TIMESTAMP
 );
@@ -36,9 +36,9 @@ CREATE TABLE IF NOT EXISTS acctbal (
     person INTEGER,
     opdate DATE,
     acct VARCHAR(20),
-    balance INTEGER,
-    db INTEGER,
-    cr INTEGER,
+    balance NUMERIC(20,6),
+    db NUMERIC(18,6),
+    cr NUMERIC(18,6),
     crdt TIMESTAMP,
     updt TIMESTAMP
 );

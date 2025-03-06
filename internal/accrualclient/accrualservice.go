@@ -19,7 +19,7 @@ type (
 	IStorage interface {
 		OrderSetProccessStatus(ctx context.Context, o models.POrder) error
 		OrderSetNewStatus(ctx context.Context, o models.POrder) error
-		AddFunds(ctx context.Context, p models.Person, o models.POrder, sum int) (models.Opentry, error)
+		AddFunds(ctx context.Context, p models.Person, o models.POrder, sum float64) (models.Opentry, error)
 		GetPersonByID(ctx context.Context, id int) (models.Person, error)
 		GetOrderToSend(ctx context.Context, limit int) ([]models.POrder, error)
 	}
@@ -62,6 +62,10 @@ func (a *Accrualservice) Calc() error {
 
 		if err != nil {
 			a.Log.Infoln(err)
+
+			if errors.Is(ErrNoOrder, err) {
+
+			}
 			err := a.Service.OrderSetNewStatus(ctx, order)
 
 			if err != nil {

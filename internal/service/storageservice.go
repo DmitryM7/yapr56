@@ -359,8 +359,8 @@ func (s *StorageService) GetPersonByID(ctx context.Context, id int) (models.Pers
 func (s *StorageService) getMoveByDb(ctx context.Context, acct string, opdate time.Time) ([]models.Opentry, error) {
 	var (
 		res    []models.Opentry
-		sum1   sql.NullInt64
-		sum2   sql.NullInt64
+		sum1   sql.NullFloat64
+		sum2   sql.NullFloat64
 		status sql.NullString
 		extNum sql.NullInt32
 	)
@@ -405,8 +405,8 @@ func (s *StorageService) getMoveByDb(ctx context.Context, acct string, opdate ti
 
 		opentry.Status = status.String
 		opentry.OrderExtNum = int(extNum.Int32)
-		opentry.Sum1 = int(sum1.Int64)
-		opentry.Sum2 = int(sum2.Int64)
+		opentry.Sum1 = sum1.Float64
+		opentry.Sum2 = sum2.Float64
 
 		if err != nil {
 			return nil, fmt.Errorf("CAN'T READ OPENTRY BY DB: [%v]", err)
@@ -422,8 +422,8 @@ func (s *StorageService) getMoveByCr(ctx context.Context, acct string, opdate ti
 	var (
 		status sql.NullString
 		res    []models.Opentry
-		sum1   sql.NullInt64
-		sum2   sql.NullInt64
+		sum1   sql.NullFloat64
+		sum2   sql.NullFloat64
 	)
 
 	rows, err := s.db.QueryContext(ctx, `SELECT id,
@@ -463,8 +463,8 @@ func (s *StorageService) getMoveByCr(ctx context.Context, acct string, opdate ti
 			&opentry.Updt)
 
 		opentry.Status = status.String
-		opentry.Sum1 = int(sum1.Int64)
-		opentry.Sum2 = int(sum2.Int64)
+		opentry.Sum1 = sum1.Float64
+		opentry.Sum2 = sum2.Float64
 
 		if err != nil {
 			fmt.Println(err)
@@ -516,8 +516,9 @@ func (s *StorageService) getLastFixBalance(ctx context.Context, acct models.Acct
 
 	return acctbal, nil
 }
-func (s *StorageService) calcBalanceByAcct(ctx context.Context, acct models.Acct) (int, error) {
-	balance := 0
+func (s *StorageService) calcBalanceByAcct(ctx context.Context, acct models.Acct) (float64, error) {
+	var balance float64
+
 	moveDateCheck := acct.Crdt
 
 	acctbal, err := s.getLastFixBalance(ctx, acct)
@@ -590,8 +591,8 @@ func (s *StorageService) getPersonAccts(ctx context.Context, p models.Person) ([
 	return res, nil
 }
 
-func (s *StorageService) GetBalance(ctx context.Context, p models.Person) (int, error) {
-	b := 0
+func (s *StorageService) GetBalance(ctx context.Context, p models.Person) (float64, error) {
+	var b float64
 
 	accts, err := s.getPersonAccts(ctx, p)
 
@@ -607,8 +608,8 @@ func (s *StorageService) GetBalance(ctx context.Context, p models.Person) (int, 
 	return b, nil
 }
 
-func (s *StorageService) Getwithdrawn(ctx context.Context, p models.Person) (int, error) {
-	b := 0
+func (s *StorageService) Getwithdrawn(ctx context.Context, p models.Person) (float64, error) {
+	var b float64
 
 	accts, err := s.getPersonAccts(ctx, p)
 
@@ -652,7 +653,7 @@ func (s *StorageService) Getwithdrawn(ctx context.Context, p models.Person) (int
 	return b, nil
 }
 
-func (s *StorageService) CreateWithdrawn(ctx context.Context, p models.Person, o models.POrder, sum int) (models.Opentry, error) {
+func (s *StorageService) CreateWithdrawn(ctx context.Context, p models.Person, o models.POrder, sum float64) (models.Opentry, error) {
 	balance, err := s.GetBalance(ctx, p)
 
 	if err != nil {
@@ -798,7 +799,7 @@ func (s *StorageService) GetOrderToSend(ctx context.Context, limit int) ([]model
 	return orders, nil
 }
 
-func (s *StorageService) AddFunds(ctx context.Context, p models.Person, o models.POrder, sum int) (models.Opentry, error) {
+func (s *StorageService) AddFunds(ctx context.Context, p models.Person, o models.POrder, sum float64) (models.Opentry, error) {
 	var opentryID uint
 
 	if sum <= 0 {

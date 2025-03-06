@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS porder (
     pid INTEGER,
     extnum NUMERIC(20,0),
     status VARCHAR(255),
-    accrual INTEGER,
+    accrual NUMERIC(18,2),
     crdt TIMESTAMP,
     updt TIMESTAMP
 );

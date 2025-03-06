@@ -32,6 +32,7 @@ const (
 
 var (
 	ErrNotFinalStatus = errors.New("NO FINAL STATUS")
+	ErrNoOrder        = errors.New("NO ORDER")
 )
 
 func (e ErrBusyPleaseWait) Error() string {
@@ -71,6 +72,7 @@ func (c *AccrualClient) Get(o models.POrder) (Response, error) {
 
 	switch resp.StatusCode {
 	case http.StatusNoContent:
+		return Response{}, ErrNoOrder
 
 	case http.StatusTooManyRequests:
 		if dur, ok := resp.Header["Retry-After"]; ok {
