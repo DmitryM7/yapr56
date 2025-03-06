@@ -311,7 +311,7 @@ func (s *Srv) actOrders(w http.ResponseWriter, r *http.Request) {
 				Number:     strconv.Itoa(order.Extnum),
 				Status:     order.Status,
 				Accrual:    float32(order.Accrual),
-				UploadedAt: order.Crdt.Format("2006-01-02T15:05:05-0700"),
+				UploadedAt: order.Crdt.Format("2006-01-02T15:04:05Z07:00"),
 			})
 		}
 
