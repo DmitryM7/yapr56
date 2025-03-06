@@ -1,6 +1,11 @@
 package controller
 
-import "time"
+import (
+	"net/http"
+	"time"
+
+	"github.com/DmitryM7/yapr56.git/internal/logger"
+)
 
 type (
 	UserRegisterRequest struct {
@@ -34,4 +39,15 @@ type (
 		Accrual    float32 `json:"accrual"`
 		UploadedAt string  `json:"uploaded_at"`
 	}
+
+	CustomResponseWrite struct {
+		http.ResponseWriter
+		Log logger.Lg
+	}
 )
+
+func (w *CustomResponseWrite) Write(b []byte) (int, error) {
+	w.Log.Infoln(string(b))
+	size, err := w.ResponseWriter.Write(b)
+	return size, err
+}

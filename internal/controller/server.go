@@ -87,7 +87,11 @@ func (s *Srv) actMiddleWare(next http.Handler) http.Handler {
 			ctx = context.WithValue(ctx, contextParam("CurrPersonID"), CurrPersonID)
 		}
 
-		next.ServeHTTP(w, r.WithContext(ctx))
+		cw := CustomResponseWrite{
+			Log:            s.Log,
+			ResponseWriter: w,
+		}
+		next.ServeHTTP(&cw, r.WithContext(ctx))
 	}
 
 	return http.HandlerFunc(f)
