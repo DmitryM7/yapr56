@@ -22,7 +22,7 @@ func NewRouter(log logger.Lg, serv IStorage, jwt IJwtService) *chi.Mux {
 			r.Get("/orders", server.actOrders)
 			r.Get("/balance", server.actAcctBalance)
 			r.Post("/balance/withdraw", server.actWithdraw)
-			r.Get("/withdrawls", server.actAcctStatement)
+			r.Get("/withdrawals", server.actAcctStatement)
 		})
 	})
 
