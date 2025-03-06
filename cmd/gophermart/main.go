@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/DmitryM7/yapr56.git/internal/accrualclient"
 	"github.com/DmitryM7/yapr56.git/internal/conf"
 	"github.com/DmitryM7/yapr56.git/internal/controller"
 	"github.com/DmitryM7/yapr56.git/internal/logger"
@@ -37,6 +38,12 @@ func run() error {
 
 	router := controller.NewRouter(logger, &service, jwt)
 
+	sender, err := accrualclient.NewAccrualservice(config.AcrBndAdr+config.AcrPoint, &service, logger)
+
+	if err != nil {
+		return err
+	}
+
 	server := &http.Server{
 		Addr:         config.BndAdr,
 		Handler:      router,
@@ -44,7 +51,10 @@ func run() error {
 		ReadTimeout:  30 * time.Second,
 	}
 
-	logger.Infoln("START...", time.Now().Add(config.SecretKeyTime))
+	logger.Infoln("START SYSTEM ...", time.Now().Add(config.SecretKeyTime))
+	logger.Infoln("START ACCRUAL CLIENT")
+	sender.Run()
+	logger.Infoln("START SERVER")
 	if errServ := server.ListenAndServe(); errServ != nil {
 		return fmt.Errorf("CAN'T EXECUTE SERVER [%w]", errServ)
 	}

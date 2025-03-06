@@ -148,7 +148,6 @@ func (s *Srv) actUserRegister(w http.ResponseWriter, r *http.Request) {
 	})
 
 	w.WriteHeader(http.StatusOK)
-
 }
 func (s *Srv) actUserLogin(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
@@ -285,6 +284,8 @@ func (s *Srv) actOrdersUpload(w http.ResponseWriter, r *http.Request) {
 func (s *Srv) actOrders(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	w.Header().Set("Content-type", "application/json")
+
 	if CurrPersonID, ok := ctx.Value(contextParam("CurrPersonID")).(int); ok {
 		person := models.Person{
 			ID: uint(CurrPersonID),
@@ -325,7 +326,6 @@ func (s *Srv) actOrders(w http.ResponseWriter, r *http.Request) {
 
 		s.Log.Infoln(orders)
 
-		w.Header().Set("Content-type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, err = w.Write(result)
 
