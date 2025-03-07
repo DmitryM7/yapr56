@@ -67,9 +67,6 @@ func (a *Accrualservice) Calc() error {
 		if err != nil {
 			a.Log.Infoln(err)
 
-			if errors.Is(ErrNoOrder, err) {
-
-			}
 			err := a.Service.OrderSetNewStatus(ctx, order)
 
 			if err != nil {

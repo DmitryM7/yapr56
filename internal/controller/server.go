@@ -269,7 +269,7 @@ func (s *Srv) actOrdersUpload(w http.ResponseWriter, r *http.Request) {
 			Extnum: extNum,
 		}
 
-		order, err = s.Service.CreateOrder(ctx, currPerson, order)
+		_, err = s.Service.CreateOrder(ctx, currPerson, order)
 
 		if err != nil {
 			if errors.Is(err, service.ErrNoLuhnNumber) {
@@ -544,7 +544,6 @@ func (s *Srv) actAcctStatement(w http.ResponseWriter, r *http.Request) {
 		s.Log.Errorln("CAN'T WRITE DATA TO BODY:[%v]", err)
 		return
 	}
-
 }
 
 func NewServer(log logger.Lg,
