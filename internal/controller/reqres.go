@@ -28,7 +28,7 @@ type (
 	}
 
 	WithdrawalsResponce struct {
-		Order       int       `json:"order"`
+		Order       string    `json:"order"`
 		Sum         float64   `json:"sum"`
 		ProcessedAt time.Time `json:"processed_at"`
 	}
@@ -47,7 +47,7 @@ type (
 )
 
 func (w *CustomResponseWrite) Write(b []byte) (int, error) {
-	w.Log.Infoln(string(b))
+	w.Log.Infoln("Response:", string(b))
 	size, err := w.ResponseWriter.Write(b)
 	return size, err
 }

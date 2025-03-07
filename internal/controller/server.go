@@ -520,7 +520,7 @@ func (s *Srv) actAcctStatement(w http.ResponseWriter, r *http.Request) {
 
 	for _, opentry := range rows {
 		wr := WithdrawalsResponce{
-			Order:       opentry.OrderExtNum,
+			Order:       strconv.Itoa(opentry.OrderExtNum),
 			Sum:         opentry.Sum1,
 			ProcessedAt: opentry.Crdt,
 		}
