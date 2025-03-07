@@ -362,29 +362,26 @@ func (s *StorageService) getMoveByDb(ctx context.Context, acct string, opdate ti
 		sum1   sql.NullFloat64
 		sum2   sql.NullFloat64
 		status sql.NullString
-		extNum sql.NullInt32
 	)
-	rows, err := s.db.QueryContext(ctx, `SELECT opentry.id,
-    											opentry.person,
-    											opentry.porder,
-    											opentry.status,
-    											opentry.opdate,
-    											opentry.acctdb,
-    											opentry.acctcr,
-    											opentry.sum1,
-    											opentry.sum2,    
-    											opentry.crdt,
-    											opentry.updt,
-												porder.extnum
+	rows, err := s.db.QueryContext(ctx, `SELECT id,
+    											person,
+    											porder,
+												orderextnum,
+    											status,
+    											opdate,
+    											acctdb,
+    											acctcr,
+    											sum1,
+    											sum2,    
+    											crdt,
+    											updt												
 	FROM  opentry
-	LEFT JOIN porder ON porder.id=opentry.porder
-	WHERE acctdb=$1 
-	AND opdate>=$2`,
+	WHERE acctdb=$1 AND opdate>=$2`,
 		acct,
 		opdate)
 
 	if err != nil {
-		return nil, fmt.Errorf("CAN'T READ OPENTRY BY DB: [%v]", err)
+		return nil, err
 	}
 
 	for rows.Next() {
@@ -393,6 +390,7 @@ func (s *StorageService) getMoveByDb(ctx context.Context, acct string, opdate ti
 			&opentry.ID,
 			&opentry.Person,
 			&opentry.Porder,
+			&opentry.OrderExtNum,
 			&status,
 			&opentry.Opdate,
 			&opentry.Acctdb,
@@ -400,16 +398,14 @@ func (s *StorageService) getMoveByDb(ctx context.Context, acct string, opdate ti
 			&sum1,
 			&sum2,
 			&opentry.Crdt,
-			&opentry.Updt,
-			&extNum)
+			&opentry.Updt)
 
 		opentry.Status = status.String
-		opentry.OrderExtNum = int(extNum.Int32)
 		opentry.Sum1 = sum1.Float64
 		opentry.Sum2 = sum2.Float64
 
 		if err != nil {
-			return nil, fmt.Errorf("CAN'T READ OPENTRY BY DB: [%v]", err)
+			return nil, err
 		}
 
 		res = append(res, opentry)
@@ -429,6 +425,7 @@ func (s *StorageService) getMoveByCr(ctx context.Context, acct string, opdate ti
 	rows, err := s.db.QueryContext(ctx, `SELECT id,
     											person,
     											porder,
+												orderextnum,
     											status,
     											opdate,
     											acctdb,
@@ -438,13 +435,12 @@ func (s *StorageService) getMoveByCr(ctx context.Context, acct string, opdate ti
     											crdt,
     											updt
 	FROM  opentry
-	WHERE acctcr=$1 
-	AND opdate>=$2`,
+	WHERE acctcr=$1 AND opdate>=$2`,
 		acct,
 		opdate)
 
 	if err != nil {
-		return nil, fmt.Errorf("CAN'T READ OPENTRY BY CR: [%v]", err)
+		return nil, err
 	}
 
 	for rows.Next() {
@@ -453,6 +449,7 @@ func (s *StorageService) getMoveByCr(ctx context.Context, acct string, opdate ti
 			&opentry.ID,
 			&opentry.Person,
 			&opentry.Porder,
+			&opentry.OrderExtNum,
 			&status,
 			&opentry.Opdate,
 			&opentry.Acctdb,
@@ -467,8 +464,7 @@ func (s *StorageService) getMoveByCr(ctx context.Context, acct string, opdate ti
 		opentry.Sum2 = sum2.Float64
 
 		if err != nil {
-			fmt.Println(err)
-			return nil, fmt.Errorf("CAN'T READ OPENTRY BY CR: [%v]", err)
+			return nil, err
 		}
 
 		res = append(res, opentry)
@@ -735,7 +731,7 @@ func (s *StorageService) GetWithdrawals(ctx context.Context, p models.Person) ([
 			r, e := s.getMoveByDb(ctx, acct.Acct, acct.Crdt)
 
 			if e != nil {
-				return nil, fmt.Errorf("ACCT IS PASSIVE AND CAN'T GET MOVE BY DB [%v]", err)
+				return nil, fmt.Errorf("ACCT IS PASSIVE AND CAN'T GET MOVE BY DB [%v]", e)
 			}
 
 			rows = append(rows, r...)
@@ -743,7 +739,7 @@ func (s *StorageService) GetWithdrawals(ctx context.Context, p models.Person) ([
 			r, e := s.getMoveByCr(ctx, acct.Acct, acct.Crdt)
 
 			if e != nil {
-				return nil, fmt.Errorf("ACCT IS ACTIVE AND CAN'T GET MOVE BY DB [%v]", err)
+				return nil, fmt.Errorf("ACCT IS ACTIVE AND CAN'T GET MOVE BY DB [%v]", e)
 			}
 
 			rows = append(rows, r...)

@@ -105,7 +105,7 @@ func (a *Accrualservice) Calc() error {
 		err = a.Service.OrderSetProcessedStatus(ctx, order)
 
 		if err != nil {
-			a.Log.Warnln(err)
+			a.Log.Infoln(err)
 		}
 
 		a.Log.Infoln("Accrual update:" + strconv.Itoa(int(opentry.ID)))
@@ -126,6 +126,5 @@ func NewAccrualservice(url string, storage IStorage, log logger.Lg) (Accrualserv
 		Service: storage,
 	}
 
-	as.Run()
 	return as, nil
 }

@@ -506,7 +506,7 @@ func (s *Srv) actAcctStatement(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		s.Log.Warnln("CAN'T GET STATEMENT: [%v]", err)
+		s.Log.Warnln("CAN'T GET STATEMENT:", err.Error())
 		return
 	}
 
@@ -535,6 +535,8 @@ func (s *Srv) actAcctStatement(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
 	_, err = w.Write(output)
 
 	if err != nil {
@@ -543,7 +545,6 @@ func (s *Srv) actAcctStatement(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
 }
 
 func NewServer(log logger.Lg,
