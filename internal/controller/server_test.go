@@ -118,6 +118,7 @@ func TestSrv_actUserRegister(t *testing.T) {
 			tt.s.actUserRegister(tt.args.w, tt.args.r)
 
 			res := tt.args.w.Result()
+			defer res.Body.Close()
 
 			assert.Equal(t, tt.want.StatusCode, res.StatusCode)
 		})
@@ -202,6 +203,7 @@ func TestSrv_actUserLogin(t *testing.T) {
 			tt.s.actUserLogin(tt.args.w, tt.args.r)
 
 			res := tt.args.w.Result()
+			defer res.Body.Close()
 
 			assert.Equal(t, tt.want.StatusCode, res.StatusCode)
 		})
@@ -297,6 +299,7 @@ func TestSrv_actOrdersUpload(t *testing.T) {
 			tt.s.actOrdersUpload(tt.args.w, tt.args.r)
 
 			res := tt.args.w.Result()
+			defer res.Body.Close()
 
 			assert.Equal(t, tt.want.StatusCode, res.StatusCode)
 		})
