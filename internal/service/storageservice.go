@@ -285,7 +285,7 @@ func (s *StorageService) GetOrder(ctx context.Context, order models.POrder) (mod
 
 func (s *StorageService) GetOrders(ctx context.Context, p models.Person) ([]models.POrder, error) {
 	var (
-		accrual sql.NullInt64
+		accrual sql.NullFloat64
 		status  sql.NullString
 	)
 
@@ -316,7 +316,7 @@ func (s *StorageService) GetOrders(ctx context.Context, p models.Person) ([]mode
 			return result, err
 		}
 
-		order.Accrual = int(accrual.Int64)
+		order.Accrual = accrual.Float64
 
 		result = append(result, order)
 	}

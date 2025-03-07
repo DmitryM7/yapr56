@@ -7,7 +7,7 @@ type POrder struct {
 	Pid     uint      `json:"-"`
 	Extnum  int       `json:"number"`
 	Status  string    `json:"status"`
-	Accrual int       `json:"accrual"`
+	Accrual float64   `json:"accrual"`
 	Crdt    time.Time `json:"uploaded_at"`
 	Updt    time.Time `json:"-"`
 }
