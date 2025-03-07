@@ -588,12 +588,16 @@ func (s *StorageService) getPersonAccts(ctx context.Context, p models.Person) ([
 		acct.Sign = sign.String
 
 		if err != nil {
-			return nil, fmt.Errorf("CAN'T CREATE ACCT STRUCT [%v]", err)
+			return nil, err
 		}
 
 		acct.Status = status.String
 		acct.Sign = sign.String
 		res = append(res, acct)
+	}
+
+	if rows.Err() != nil {
+		return nil, err
 	}
 
 	return res, nil
