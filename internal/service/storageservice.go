@@ -320,6 +320,11 @@ func (s *StorageService) GetOrders(ctx context.Context, p models.Person) ([]mode
 
 		result = append(result, order)
 	}
+
+	if rows.Err() != nil {
+		return result, rows.Err()
+	}
+
 	return result, nil
 }
 
@@ -355,8 +360,7 @@ func (s *StorageService) GetPersonByID(ctx context.Context, id int) (models.Pers
 	return person, nil
 }
 
-//nolint:stylecheck //It's debit neither DB
-func (s *StorageService) getMoveByDb(ctx context.Context, acct string, opdate time.Time) ([]models.Opentry, error) {
+func (s *StorageService) getMoveByDb(ctx context.Context, acct string, opdate time.Time) ([]models.Opentry, error) { //nolint:stylecheck //It's debit neither DB
 	var (
 		res    []models.Opentry
 		sum1   sql.NullFloat64
@@ -406,6 +410,10 @@ func (s *StorageService) getMoveByDb(ctx context.Context, acct string, opdate ti
 
 		if err != nil {
 			return nil, err
+		}
+
+		if rows.Err() != nil {
+			return nil, rows.Err()
 		}
 
 		res = append(res, opentry)
