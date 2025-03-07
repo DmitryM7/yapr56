@@ -19,6 +19,7 @@ type (
 	IStorage interface {
 		OrderSetProccessStatus(ctx context.Context, o models.POrder) error
 		OrderSetNewStatus(ctx context.Context, o models.POrder) error
+		OrderSetProcessedStatus(ctx context.Context, o models.POrder) error
 		AddFunds(ctx context.Context, p models.Person, o models.POrder, sum float64) (models.Opentry, error)
 		GetPersonByID(ctx context.Context, id int) (models.Person, error)
 		GetOrderToSend(ctx context.Context, limit int) ([]models.POrder, error)
@@ -52,7 +53,7 @@ func (a *Accrualservice) Calc() error {
 		return err
 	}
 
-	a.Log.Infoln("ORDER TO WORK:", string(len(orders)))
+	a.Log.Infoln("ORDER TO WORK:", strconv.Itoa(len(orders)))
 
 	for _, order := range orders {
 		err := a.Service.OrderSetProccessStatus(ctx, order)
@@ -99,6 +100,12 @@ func (a *Accrualservice) Calc() error {
 				a.Log.Infoln(err)
 			}
 			continue
+		}
+
+		err = a.Service.OrderSetProcessedStatus(ctx, order)
+
+		if err != nil {
+			a.Log.Warnln(err)
 		}
 
 		a.Log.Infoln("Accrual update:" + strconv.Itoa(int(opentry.ID)))

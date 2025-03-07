@@ -877,6 +877,13 @@ func (s *StorageService) OrderSetProccessStatus(ctx context.Context, o models.PO
 	}
 	return nil
 }
+func (s *StorageService) OrderSetProcessedStatus(ctx context.Context, o models.POrder) error {
+	_, err := s.db.ExecContext(ctx, "UPDATE porder SET status=$1,updt=$2 WHERE id=$3", StatusProcessed, time.Now(), o.ID)
+	if err != nil {
+		return fmt.Errorf("CAN'T UPDATE STATUS [%w]", err)
+	}
+	return nil
+}
 
 func (s *StorageService) OrderSetNewStatus(ctx context.Context, o models.POrder) error {
 	_, err := s.db.ExecContext(ctx, "UPDATE porder SET status=$1,updt=$2 WHERE id=$3", StatusNew, time.Now(), o.ID)
