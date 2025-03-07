@@ -478,6 +478,10 @@ func (s *StorageService) getMoveByCr(ctx context.Context, acct string, opdate ti
 		res = append(res, opentry)
 	}
 
+	if rows.Err() != nil {
+		return nil, rows.Err()
+	}
+
 	return res, nil
 }
 
@@ -792,12 +796,16 @@ func (s *StorageService) GetOrderToSend(ctx context.Context, limit int) ([]model
 			&order.Updt)
 
 		if err != nil {
-			return nil, fmt.Errorf("CAN'T SCAN porder [%w]", err)
+			return nil, err
 		}
 
 		order.Status = status.String
 
 		orders = append(orders, order)
+	}
+
+	if rows.Err() != nil {
+		return nil, err
 	}
 
 	return orders, nil
