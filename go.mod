@@ -1,6 +1,6 @@
 module github.com/DmitryM7/yapr56.git
 
-go 1.23.5
+go 1.22
 
 require (
 	github.com/go-chi/chi v1.5.5
