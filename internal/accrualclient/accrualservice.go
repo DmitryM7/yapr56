@@ -28,6 +28,7 @@ type (
 		Log     logger.Lg
 		Service IStorage
 		Client  AccrualClient
+		Ctx     context.Context
 	}
 )
 

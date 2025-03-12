@@ -360,7 +360,7 @@ func (s *StorageService) GetPersonByID(ctx context.Context, id int) (models.Pers
 	return person, nil
 }
 
-func (s *StorageService) getMoveByDb(ctx context.Context, acct string, opdate time.Time) ([]models.Opentry, error) { //nolint:stylecheck //It's debit neither DB
+func (s *StorageService) getMoveByDebit(ctx context.Context, acct string, opdate time.Time) ([]models.Opentry, error) {
 	var (
 		res    []models.Opentry
 		sum1   sql.NullFloat64
@@ -422,7 +422,7 @@ func (s *StorageService) getMoveByDb(ctx context.Context, acct string, opdate ti
 	return res, nil
 }
 
-func (s *StorageService) getMoveByCr(ctx context.Context, acct string, opdate time.Time) ([]models.Opentry, error) {
+func (s *StorageService) getMoveByCredit(ctx context.Context, acct string, opdate time.Time) ([]models.Opentry, error) {
 	var (
 		status sql.NullString
 		res    []models.Opentry
@@ -540,7 +540,7 @@ func (s *StorageService) calcBalanceByAcct(ctx context.Context, acct models.Acct
 		moveDateCheck = acctbal.Opdate
 	}
 
-	rows, err := s.getMoveByDb(ctx, acct.Acct, moveDateCheck)
+	rows, err := s.getMoveByDebit(ctx, acct.Acct, moveDateCheck)
 
 	if err != nil {
 		return 0, fmt.Errorf("CAN'T READ OPENTRY BY CR INFO [%v]", err)
@@ -554,7 +554,7 @@ func (s *StorageService) calcBalanceByAcct(ctx context.Context, acct models.Acct
 		}
 	}
 
-	rows, err = s.getMoveByCr(ctx, acct.Acct, moveDateCheck)
+	rows, err = s.getMoveByCredit(ctx, acct.Acct, moveDateCheck)
 
 	if err != nil {
 		return 0, fmt.Errorf("CAN'T READ OPENTRY BY DB INFO [%v]", err)
@@ -640,7 +640,7 @@ func (s *StorageService) Getwithdrawn(ctx context.Context, p models.Person) (flo
 
 		if acct.Sign == AcctSidePassive {
 			b += fixedBalance.Db
-			rows, err := s.getMoveByDb(ctx, acct.Acct, fixedBalance.Opdate)
+			rows, err := s.getMoveByDebit(ctx, acct.Acct, fixedBalance.Opdate)
 
 			if err != nil {
 				return 0, fmt.Errorf("CAN'T GET ACCT MOBY BY DB: [%v]", err)
@@ -651,7 +651,7 @@ func (s *StorageService) Getwithdrawn(ctx context.Context, p models.Person) (flo
 		} else if acct.Sign == AcctSideActive {
 			b += fixedBalance.Cr
 
-			rows, err := s.getMoveByCr(ctx, acct.Acct, fixedBalance.Opdate)
+			rows, err := s.getMoveByCredit(ctx, acct.Acct, fixedBalance.Opdate)
 
 			if err != nil {
 				return 0, fmt.Errorf("CAN'T GET ACCT MOBY BY DB: [%v]", err)
@@ -744,7 +744,7 @@ func (s *StorageService) GetWithdrawals(ctx context.Context, p models.Person) ([
 
 	for _, acct := range accts {
 		if acct.Sign == AcctSidePassive {
-			r, e := s.getMoveByDb(ctx, acct.Acct, acct.Crdt)
+			r, e := s.getMoveByDebit(ctx, acct.Acct, acct.Crdt)
 
 			if e != nil {
 				return nil, fmt.Errorf("ACCT IS PASSIVE AND CAN'T GET MOVE BY DB [%v]", e)
@@ -752,7 +752,7 @@ func (s *StorageService) GetWithdrawals(ctx context.Context, p models.Person) ([
 
 			rows = append(rows, r...)
 		} else if acct.Sign == AcctSideActive {
-			r, e := s.getMoveByCr(ctx, acct.Acct, acct.Crdt)
+			r, e := s.getMoveByCredit(ctx, acct.Acct, acct.Crdt)
 
 			if e != nil {
 				return nil, fmt.Errorf("ACCT IS ACTIVE AND CAN'T GET MOVE BY DB [%v]", e)
