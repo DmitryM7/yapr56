@@ -509,8 +509,8 @@ func (s *StorageService) getLastFixBalance(ctx context.Context, acct models.Acct
 		&acctbal.Opdate,
 		&acctbal.Acct,
 		&acctbal.Balance,
-		&acctbal.Db,
-		&acctbal.Cr,
+		&acctbal.Debit,
+		&acctbal.Credit,
 		&acctbal.Crdt,
 		&acctbal.Updt)
 
@@ -639,7 +639,7 @@ func (s *StorageService) Getwithdrawn(ctx context.Context, p models.Person) (flo
 		}
 
 		if acct.Sign == AcctSidePassive {
-			b += fixedBalance.Db
+			b += fixedBalance.Debit
 			rows, err := s.getMoveByDebit(ctx, acct.Acct, fixedBalance.Opdate)
 
 			if err != nil {
@@ -649,7 +649,7 @@ func (s *StorageService) Getwithdrawn(ctx context.Context, p models.Person) (flo
 				b += opentry.Sum1
 			}
 		} else if acct.Sign == AcctSideActive {
-			b += fixedBalance.Cr
+			b += fixedBalance.Credit
 
 			rows, err := s.getMoveByCredit(ctx, acct.Acct, fixedBalance.Opdate)
 
