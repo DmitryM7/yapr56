@@ -39,10 +39,8 @@ func (e ErrBusyPleaseWait) Error() string {
 	return "BUSY PLEASE WAIT:" + e.err.Error()
 }
 
-func (c *AccrualClient) Get(o models.POrder) (Response, error) {
+func (c *AccrualClient) Get(ctx context.Context, o models.POrder) (Response, error) {
 	extnum := strconv.Itoa(o.Extnum)
-
-	ctx := context.Background()
 
 	req, err := http.NewRequest(http.MethodGet, c.URL+"/"+extnum, http.NoBody)
 
@@ -90,9 +88,6 @@ func (c *AccrualClient) Get(o models.POrder) (Response, error) {
 		}
 	case http.StatusOK:
 		output := Response{}
-		fmt.Println("---->")
-		fmt.Println(string(body))
-		fmt.Println("<----")
 		err = json.Unmarshal(body, &output)
 
 		if err != nil {

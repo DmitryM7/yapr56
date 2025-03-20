@@ -12,7 +12,7 @@ import (
 
 const (
 	MaxOrderToSendCount = 10
-	WaitTime            = 5
+	DefWaitTime         = 5
 )
 
 type (
@@ -32,22 +32,32 @@ type (
 	}
 )
 
-func (a *Accrualservice) Run() {
+func (a *Accrualservice) Run(ctx context.Context) {
 	go func() {
 		for {
-			a.Log.Infoln("GET INFO FROM ACCRUAL...")
-			err := a.Calc()
-			if err != nil {
-				a.Log.Warnln("CAN'T GET ACCRUAL INFO:" + err.Error())
+			waitTime := DefWaitTime
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				a.Log.Infoln("GET INFO FROM ACCRUAL...")
+				err := a.Calc(ctx)
+
+				if err != nil {
+					a.Log.Warnln("CAN'T GET ACCRUAL INFO:" + err.Error())
+					var clientErr *ErrBusyPleaseWait
+					if errors.As(err, &clientErr) {
+						waitTime = int(clientErr.Duration)
+						a.Log.Warnln("MODIFY WAIT TIME TO:" + clientErr.Duration.String())
+					}
+				}
+				time.Sleep(time.Duration(waitTime) * time.Second)
 			}
-			time.Sleep(time.Duration(WaitTime) * time.Second)
 		}
 	}()
 }
 
-func (a *Accrualservice) Calc() error {
-	ctx := context.Background()
-
+func (a *Accrualservice) Calc(ctx context.Context) error {
 	orders, err := a.Service.GetOrderToSend(ctx, MaxOrderToSendCount)
 
 	if err != nil {
@@ -63,16 +73,24 @@ func (a *Accrualservice) Calc() error {
 			return err
 		}
 
-		resp, err := a.Client.Get(order)
+		resp, err := a.Client.Get(ctx, order)
 
 		if err != nil {
 			a.Log.Infoln(err)
+
+			// Если ошибка таймаута, то выбрасываем ошибку для ожидания
+			var clientErr *ErrBusyPleaseWait
+
+			if errors.As(err, &clientErr) {
+				return err
+			}
 
 			err := a.Service.OrderSetNewStatus(ctx, order)
 
 			if err != nil {
 				a.Log.Infoln(err)
 			}
+
 			continue
 		}
 

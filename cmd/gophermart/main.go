@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -21,6 +22,9 @@ func main() {
 }
 
 func run() error {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	config := conf.NewConf()
 
 	logger := logger.NewLg()
@@ -53,8 +57,9 @@ func run() error {
 
 	logger.Infoln("START SYSTEM ...", time.Now().Add(config.SecretKeyTime))
 	logger.Infoln("START ACCRUAL CLIENT")
-	sender.Run()
+	sender.Run(ctx)
 	logger.Infoln("START SERVER")
+
 	if errServ := server.ListenAndServe(); errServ != nil {
 		return fmt.Errorf("CAN'T EXECUTE SERVER [%w]", errServ)
 	}
