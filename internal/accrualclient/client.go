@@ -66,8 +66,6 @@ func (c *AccrualClient) Get(ctx context.Context, o models.POrder) (Response, err
 		return Response{}, fmt.Errorf("CAN'T READ BODY: [%w]", err)
 	}
 
-	fmt.Println(resp.StatusCode)
-
 	switch resp.StatusCode {
 	case http.StatusNoContent:
 		return Response{}, ErrNoOrder

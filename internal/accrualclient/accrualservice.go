@@ -101,8 +101,6 @@ func (a *Accrualservice) Calc(ctx context.Context) error {
 		resp, err := a.Client.Get(ctx, order)
 
 		if err != nil {
-			a.Log.Infoln(err)
-
 			// Если ошибка таймаута, то выбрасываем ошибку для ожидания
 			var clientErr *ErrBusyPleaseWait
 

@@ -180,7 +180,6 @@ func (s *StorageService) CreatePeson(ctx context.Context, p models.Person) (mode
 		}
 		return models.Person{}, fmt.Errorf("CAN'T ACCT SEQUENCE VALUE [%w]", err)
 	}
-	fmt.Println("SEQ:", acctSerial)
 	err = tx.QueryRowContext(ctx, `INSERT INTO acct (acct,person,sign,crdt,updt) VALUES($1,$2,'П',$3,$4) RETURNING id`,
 		`408178101`+fmt.Sprintf("%011d", acctSerial),
 		personID,
@@ -559,7 +558,6 @@ func (s *StorageService) calcBalanceByAcct(ctx context.Context, acct models.Acct
 	if err != nil {
 		return 0, fmt.Errorf("CAN'T READ OPENTRY BY DB INFO [%v]", err)
 	}
-	fmt.Printf("[%#v]", rows)
 
 	for _, opentry := range rows {
 		if acct.Sign == AcctSideActive {
@@ -571,6 +569,29 @@ func (s *StorageService) calcBalanceByAcct(ctx context.Context, acct models.Acct
 	return balance, nil
 }
 
+func (s *StorageService) LockPersonAccts(ctx context.Context, p models.Person) (*sql.Tx, error) {
+	tx, err := s.db.Begin()
+
+	if err != nil {
+		return nil, err
+	}
+	_, err = tx.ExecContext(ctx, "SELECT id,acct,person,sign,status,crdt,updt FROM acct WHERE person=$1 FOR UPDATE", p.GetID())
+
+	if err != nil {
+		fmt.Println("ERROR")
+		return nil, err
+	}
+
+	return tx, nil
+}
+
+func (s *StorageService) UnlockPersonAccts(tx *sql.Tx) {
+	err := tx.Rollback()
+
+	if err != nil {
+		fmt.Println("CAN'T UNLOCK ACCT:" + err.Error())
+	}
+}
 func (s *StorageService) getPersonAccts(ctx context.Context, p models.Person) ([]models.Acct, error) {
 	var res []models.Acct
 
@@ -666,31 +687,41 @@ func (s *StorageService) Getwithdrawn(ctx context.Context, p models.Person) (flo
 }
 
 func (s *StorageService) CreateWithdrawn(ctx context.Context, p models.Person, o models.POrder, sum float64) (models.Opentry, error) {
-	balance, err := s.GetBalance(ctx, p)
-
-	if err != nil {
-		return models.Opentry{}, fmt.Errorf("CAN GET BALANCE: [%v]", err)
-	}
-
-	if sum == 0 {
-		return models.Opentry{}, fmt.Errorf("ZERO SUM TO WITHDRAW")
-	}
-
-	if sum > balance {
-		return models.Opentry{}, ErrRedSaldo
-	}
-
 	accts, err := s.getPersonAccts(ctx, p)
 
 	if err != nil {
-		return models.Opentry{}, fmt.Errorf("CAN'T GET PERSON ACCT: [%v]", err)
+		return models.Opentry{}, fmt.Errorf("CAN GET ACCTS: [%w]", err)
 	}
 
 	if len(accts) == 0 {
-		return models.Opentry{}, fmt.Errorf("NO ACTIVE ACCT FOR PERSON")
+		return models.Opentry{}, fmt.Errorf("PERSON HASN'T ACCTS")
 	}
 
 	acct := accts[0]
+
+	tx, err := s.LockPersonAccts(ctx, p)
+
+	if err != nil {
+		s.UnlockPersonAccts(tx)
+		return models.Opentry{}, fmt.Errorf("CAN LOCK PERSON ACCT: [%w]", err)
+	}
+
+	balance, err := s.GetBalance(ctx, p)
+
+	if err != nil {
+		s.UnlockPersonAccts(tx)
+		return models.Opentry{}, fmt.Errorf("CAN GET BALANCE: [%w]", err)
+	}
+
+	if sum == 0 {
+		s.UnlockPersonAccts(tx)
+		return models.Opentry{}, errors.New("NO MANY")
+	}
+
+	if sum > balance {
+		s.UnlockPersonAccts(tx)
+		return models.Opentry{}, ErrRedSaldo
+	}
 
 	opentry := models.Opentry{
 		Person:      p.GetID(),
@@ -727,10 +758,12 @@ func (s *StorageService) CreateWithdrawn(ctx context.Context, p models.Person, o
 		Scan(&opentryID)
 
 	if err != nil {
-		return models.Opentry{}, fmt.Errorf("CAN'T INSERT OPENTRY:[%w]", err)
+		s.UnlockPersonAccts(tx)
+		return models.Opentry{}, fmt.Errorf("CAN GET BALANCE: [%w]", err)
 	}
 
 	opentry.ID = opentryID
+	s.UnlockPersonAccts(tx)
 
 	return opentry, nil
 }
@@ -823,8 +856,8 @@ func (s *StorageService) GetOrderProcessingLongTime(ctx context.Context,
 	now := time.Now()
 
 	rows, err := s.db.QueryContext(ctx, "SELECT id,pid,extnum,status,crdt,updt FROM porder WHERE status in ($1) AND updt <= $2 limit $3",
+		StatusProcessing,
 		now.Add(-1*t*time.Second),
-		t,
 		limit)
 
 	if err != nil {
