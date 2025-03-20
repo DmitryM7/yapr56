@@ -117,17 +117,17 @@ func (s *StorageService) GetPesonByCredential(ctx context.Context, login, pass s
 		&person.Crdt,
 		&person.Updt)
 
-	person.Fullname = fullname.String
-	person.Surname = surname.String
-	person.Name = name.String
-	person.Status = status.String
-
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return person, ErrUserCredentialInvalid
 		}
 		return person, fmt.Errorf("CAN'T SEARCH PERSON BY CREDENTIAL [%w]", err)
 	}
+
+	person.Fullname = fullname.String
+	person.Surname = surname.String
+	person.Name = name.String
+	person.Status = status.String
 
 	return person, nil
 }
@@ -345,17 +345,17 @@ func (s *StorageService) GetPersonByID(ctx context.Context, id int) (models.Pers
 		&person.Crdt,
 		&person.Updt)
 
-	person.Fullname = fullname.String
-	person.Surname = surname.String
-	person.Name = name.String
-	person.Status = status.String
-
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return person, err
 		}
 		return person, fmt.Errorf("CAN'T SEARCH PERSON BY ID [%w]", err)
 	}
+
+	person.Fullname = fullname.String
+	person.Surname = surname.String
+	person.Name = name.String
+	person.Status = status.String
 
 	return person, nil
 }
@@ -404,19 +404,19 @@ func (s *StorageService) getMoveByDebit(ctx context.Context, acct string, opdate
 			&opentry.Crdt,
 			&opentry.Updt)
 
-		opentry.Status = status.String
-		opentry.Sum1 = sum1.Float64
-		opentry.Sum2 = sum2.Float64
-
 		if err != nil {
 			return nil, err
 		}
 
-		if rows.Err() != nil {
-			return nil, rows.Err()
-		}
+		opentry.Status = status.String
+		opentry.Sum1 = sum1.Float64
+		opentry.Sum2 = sum2.Float64
 
 		res = append(res, opentry)
+	}
+
+	if rows.Err() != nil {
+		return nil, rows.Err()
 	}
 
 	return res, nil
@@ -467,13 +467,13 @@ func (s *StorageService) getMoveByCredit(ctx context.Context, acct string, opdat
 			&opentry.Crdt,
 			&opentry.Updt)
 
-		opentry.Status = status.String
-		opentry.Sum1 = sum1.Float64
-		opentry.Sum2 = sum2.Float64
-
 		if err != nil {
 			return nil, err
 		}
+
+		opentry.Status = status.String
+		opentry.Sum1 = sum1.Float64
+		opentry.Sum2 = sum2.Float64
 
 		res = append(res, opentry)
 	}
@@ -584,12 +584,12 @@ func (s *StorageService) getPersonAccts(ctx context.Context, p models.Person) ([
 		var status, sign sql.NullString
 		acct := models.Acct{}
 		err := rows.Scan(&acct.ID, &acct.Acct, &acct.Person, &sign, &status, &acct.Crdt, &acct.Updt)
-		acct.Status = status.String
-		acct.Sign = sign.String
-
 		if err != nil {
 			return nil, err
 		}
+
+		acct.Status = status.String
+		acct.Sign = sign.String
 
 		acct.Status = status.String
 		acct.Sign = sign.String
@@ -783,6 +783,49 @@ func (s *StorageService) GetOrderToSend(ctx context.Context, limit int) ([]model
 	var status sql.NullString
 
 	rows, err := s.db.QueryContext(ctx, "SELECT id,pid,extnum,status,crdt,updt FROM porder WHERE status in ($1) limit $2", StatusNew, limit)
+
+	if err != nil {
+		return nil, fmt.Errorf("CAN'T GET ORDER LIST [%w]", err)
+	}
+
+	orders := []models.POrder{}
+
+	for rows.Next() {
+		order := models.POrder{}
+		err := rows.Scan(&order.ID,
+			&order.Pid,
+			&order.Extnum,
+			&status,
+			&order.Crdt,
+			&order.Updt)
+
+		if err != nil {
+			return nil, err
+		}
+
+		order.Status = status.String
+
+		orders = append(orders, order)
+	}
+
+	if rows.Err() != nil {
+		return nil, err
+	}
+
+	return orders, nil
+}
+
+func (s *StorageService) GetOrderProcessingLongTime(ctx context.Context,
+	t time.Duration,
+	limit int) ([]models.POrder, error) {
+	var status sql.NullString
+
+	now := time.Now()
+
+	rows, err := s.db.QueryContext(ctx, "SELECT id,pid,extnum,status,crdt,updt FROM porder WHERE status in ($1) AND updt <= $2 limit $3",
+		now.Add(-1*t*time.Second),
+		t,
+		limit)
 
 	if err != nil {
 		return nil, fmt.Errorf("CAN'T GET ORDER LIST [%w]", err)

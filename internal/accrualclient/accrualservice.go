@@ -3,6 +3,7 @@ package accrualclient
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -11,8 +12,11 @@ import (
 )
 
 const (
-	MaxOrderToSendCount = 10
-	DefWaitTime         = 5
+	MaxOrderToSendCount  = 10
+	DefGetWaitTime       = 5
+	DefClearWaitTime     = 300
+	DefProcessingTime    = 180
+	MaxOrderToClearCount = 100
 )
 
 type (
@@ -23,6 +27,7 @@ type (
 		AddFunds(ctx context.Context, p models.Person, o models.POrder, sum float64) (models.Opentry, error)
 		GetPersonByID(ctx context.Context, id int) (models.Person, error)
 		GetOrderToSend(ctx context.Context, limit int) ([]models.POrder, error)
+		GetOrderProcessingLongTime(ctx context.Context, t time.Duration, limit int) ([]models.POrder, error)
 	}
 	Accrualservice struct {
 		Log     logger.Lg
@@ -32,10 +37,30 @@ type (
 	}
 )
 
+func (a *Accrualservice) Clear(ctx context.Context) {
+	go func() {
+		for {
+			waitTime := DefClearWaitTime
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				err := a.resetStatus(ctx)
+
+				if err != nil {
+					a.Log.Warn(err)
+				}
+			}
+
+			time.Sleep(time.Duration(waitTime) * time.Second)
+		}
+	}()
+}
+
 func (a *Accrualservice) Run(ctx context.Context) {
 	go func() {
 		for {
-			waitTime := DefWaitTime
+			waitTime := DefGetWaitTime
 			select {
 			case <-ctx.Done():
 				return
@@ -125,6 +150,23 @@ func (a *Accrualservice) Calc(ctx context.Context) error {
 		}
 
 		a.Log.Infoln("Accrual update:" + strconv.Itoa(int(opentry.ID)))
+	}
+	return nil
+}
+
+func (a *Accrualservice) resetStatus(ctx context.Context) error {
+	orders, err := a.Service.GetOrderProcessingLongTime(ctx, DefClearWaitTime, MaxOrderToClearCount)
+
+	if err != nil {
+		return fmt.Errorf("CAN'T GET PROCESSING ORDERS:[%w]", err)
+	}
+
+	for _, o := range orders {
+		err := a.Service.OrderSetNewStatus(ctx, o)
+
+		if err != nil {
+			return fmt.Errorf("CAN'T SET NEW STATUS TO BAD ORDERS [%w]", err)
+		}
 	}
 	return nil
 }

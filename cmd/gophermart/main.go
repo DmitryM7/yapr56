@@ -56,10 +56,12 @@ func run() error {
 	}
 
 	logger.Infoln("START SYSTEM ...", time.Now().Add(config.SecretKeyTime))
-	logger.Infoln("START ACCRUAL CLIENT")
+	logger.Infoln("START ACCRUAL CLIENT JOB")
 	sender.Run(ctx)
-	logger.Infoln("START SERVER")
+	logger.Infoln("START CLEAR JOB")
+	sender.Clear(ctx)
 
+	logger.Infoln("START SERVER")
 	if errServ := server.ListenAndServe(); errServ != nil {
 		return fmt.Errorf("CAN'T EXECUTE SERVER [%w]", errServ)
 	}
