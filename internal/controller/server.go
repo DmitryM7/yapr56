@@ -1,0 +1,562 @@
+package controller
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/DmitryM7/yapr56.git/internal/logger"
+	"github.com/DmitryM7/yapr56.git/internal/models"
+	"github.com/DmitryM7/yapr56.git/internal/service"
+)
+
+type (
+	IJwtService interface {
+		GetJwtStr(uid int) (string, error)
+		UnloadUserIDJwt(tokenString string) (int, error)
+		TokenExpired() time.Duration
+	}
+
+	IStorage interface {
+		GetPesonByCredential(ctx context.Context, login, pass string) (models.Person, error)
+		CreatePeson(ctx context.Context, p models.Person) (models.Person, error)
+		CreateOrder(ctx context.Context, p models.Person, order models.POrder) (models.POrder, error)
+		GetOrder(ctx context.Context, order models.POrder) (models.POrder, error)
+		GetPersonByID(ctx context.Context, id int) (models.Person, error)
+		GetOrders(ctx context.Context, p models.Person) ([]models.POrder, error)
+		GetBalance(ctx context.Context, p models.Person) (float64, error)
+		Getwithdrawn(ctx context.Context, p models.Person) (float64, error)
+		GetWithdrawals(ctx context.Context, p models.Person) ([]models.Opentry, error)
+		CreateWithdrawn(ctx context.Context, p models.Person, o models.POrder, sum float64) (models.Opentry, error)
+	}
+
+	Srv struct {
+		Log           logger.Lg
+		Service       IStorage
+		JwtService    IJwtService
+		NoAuthActions map[string]string
+	}
+
+	contextParam string
+)
+
+const tokenName = "token"
+
+func (s *Srv) actMiddleWare(next http.Handler) http.Handler {
+	f := func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+
+		buf, err := io.ReadAll(r.Body)
+
+		if err != nil {
+			s.Log.Errorln("CAN'T READ BODY")
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		readedBody := io.NopCloser(bytes.NewBuffer(buf))
+
+		r.Body = readedBody
+
+		s.Log.Debugln("END POINT IS:", r.Method, " ", r.URL.Path)
+		s.Log.Debug("BODY:", string(buf))
+
+		if _, e := s.NoAuthActions[r.URL.Path]; !e {
+			cookie, err := r.Cookie(tokenName)
+
+			if err != nil {
+				s.Log.Debugln("CAN'T READ COOKIE:", err)
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+
+			CurrPersonID, err := s.JwtService.UnloadUserIDJwt(cookie.Value)
+
+			if err != nil {
+				s.Log.Debugln("CAN'T UNLOAD ID FROM JWT:", err)
+				w.WriteHeader(http.StatusUnauthorized)
+				return
+			}
+
+			ctx = context.WithValue(ctx, contextParam("CurrPersonID"), CurrPersonID)
+		}
+
+		cw := CustomResponseWrite{
+			Log:            s.Log,
+			ResponseWriter: w,
+		}
+		next.ServeHTTP(&cw, r.WithContext(ctx))
+	}
+
+	return http.HandlerFunc(f)
+}
+func (s *Srv) actUserRegister(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		s.Log.Errorln("CAN'T READ BODY:", err)
+		return
+	}
+
+	defer func() {
+		err := r.Body.Close()
+		if err != nil {
+			s.Log.Warnln("CAN'T CLOSE BODY")
+		}
+	}()
+
+	if string(body) == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		s.Log.Debugln("EMPTY BODY")
+		return
+	}
+
+	request := UserRegisterRequest{}
+
+	err = json.Unmarshal(body, &request)
+
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		s.Log.Warnln("CAN'T UNMARSHAL USER REQUEST IN REGISTER ACTION:", err)
+		return
+	}
+
+	person := models.Person{
+		Login: request.Login,
+		Pass:  request.Password,
+	}
+
+	ctx := r.Context()
+
+	person, err = s.Service.CreatePeson(ctx, person)
+
+	if err != nil {
+		if errors.Is(err, service.ErrUserExists) {
+			w.WriteHeader(http.StatusConflict)
+			s.Log.Debugln(fmt.Sprintf("LOGIN [%s] IS BUSY", person.Login))
+			return
+		}
+
+		w.WriteHeader(http.StatusInternalServerError)
+		s.Log.Warnln("CAN'T CREATE PERSON BY CREDENTIAL:", err)
+		return
+	}
+
+	jwtToken, err := s.JwtService.GetJwtStr(int(person.ID))
+
+	if err != nil {
+		s.Log.Errorln("CAN'T CREATE JWT FOR USER:", person.ID)
+		return
+	}
+
+	s.Log.Debugln(fmt.Sprintf("PERSON WAS CREATE id=%d,login=%s", person.ID, person.Login))
+
+	http.SetCookie(w, &http.Cookie{
+		Name:    tokenName,
+		Value:   jwtToken,
+		Path:    "/",
+		Expires: time.Now().Add(s.JwtService.TokenExpired()),
+	})
+
+	w.WriteHeader(http.StatusOK)
+}
+func (s *Srv) actUserLogin(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		s.Log.Warnln("CAN'T READ BODY")
+		return
+	}
+
+	defer func() {
+		err := r.Body.Close()
+		if err != nil {
+			s.Log.Warnln("CAN'T CLOSE BODY")
+		}
+	}()
+
+	p := UserAuthRequest{}
+
+	err = json.Unmarshal(body, &p)
+
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		s.Log.Errorln("CAN'T UNMARSHAL BODY:<" + string(body) + "<")
+		return
+	}
+
+	ctx := r.Context()
+	person, err := s.Service.GetPesonByCredential(ctx, p.Login, p.Password)
+
+	if err != nil {
+		if errors.Is(err, service.ErrUserCredentialInvalid) {
+			w.WriteHeader(http.StatusUnauthorized)
+			s.Log.Infoln("INVALID USER NAME OR PASS:", p.Login)
+			return
+		}
+
+		w.WriteHeader(http.StatusInternalServerError)
+		s.Log.Errorln("CAN'T GET USER BY LOGIN AND PASS:", err)
+		return
+	}
+
+	jwtToken, err := s.JwtService.GetJwtStr(int(person.ID))
+
+	if err != nil {
+		s.Log.Errorln("CAN'T CREATE JWT FOR USER:", person.ID)
+		return
+	}
+
+	s.Log.Infoln("NOW PERSON IS ", person.ID)
+
+	http.SetCookie(w, &http.Cookie{
+		Name:    tokenName,
+		Value:   jwtToken,
+		Path:    "/",
+		Expires: time.Now().Add(s.JwtService.TokenExpired()),
+	})
+	w.WriteHeader(http.StatusOK)
+}
+func (s *Srv) actOrdersUpload(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		s.Log.Warnln("CAN'T READ BODY")
+		return
+	}
+
+	defer func() {
+		err := r.Body.Close()
+		if err != nil {
+			s.Log.Warnln("CAN'T CLOSE BODY")
+		}
+	}()
+
+	if string(body) == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		s.Log.Infoln("EMPTY BODY")
+		return
+	}
+
+	extNum, err := strconv.Atoi(string(body))
+
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		s.Log.Infoln("CAN'T PARSE ORDER NUMBER TO INT")
+		return
+	}
+
+	ctx := r.Context()
+
+	if CurrPersonID, ok := ctx.Value(contextParam("CurrPersonID")).(int); ok {
+		s.Log.Infoln("CurrPerson is ", CurrPersonID)
+		currPerson, err := s.Service.GetPersonByID(ctx, CurrPersonID)
+
+		if err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			s.Log.Infoln("CAN'T FIND PERSON WITH ID=", CurrPersonID)
+			return
+		}
+
+		order := models.POrder{
+			Extnum: extNum,
+		}
+
+		_, err = s.Service.CreateOrder(ctx, currPerson, order)
+
+		if err != nil {
+			if errors.Is(err, service.ErrNoLuhnNumber) {
+				w.WriteHeader(http.StatusUnprocessableEntity)
+				s.Log.Infoln("INCORRECT ORDER NUMBER:", err)
+				return
+			}
+
+			if errors.Is(err, service.ErrDublicateOrder) {
+				w.WriteHeader(http.StatusOK)
+				s.Log.Infoln(err)
+				return
+			}
+
+			if errors.Is(err, service.ErrOrderExists) {
+				w.WriteHeader(http.StatusConflict)
+				s.Log.Infoln(err)
+				return
+			}
+
+			w.WriteHeader(http.StatusInternalServerError)
+			s.Log.Errorln(err)
+			return
+		}
+
+		w.WriteHeader(http.StatusAccepted)
+	}
+}
+
+func (s *Srv) actOrders(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	w.Header().Set("Content-type", "application/json")
+
+	if CurrPersonID, ok := ctx.Value(contextParam("CurrPersonID")).(int); ok {
+		person := models.Person{
+			ID: uint(CurrPersonID),
+		}
+
+		orders, err := s.Service.GetOrders(ctx, person)
+
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			s.Log.Warnln("CAN'T GET ORDER LIST:", err)
+			return
+		}
+
+		if len(orders) == 0 {
+			w.WriteHeader(http.StatusNoContent)
+			s.Log.Infoln("ORDER LIST EMPTY")
+			return
+		}
+
+		output := []OrderResponse{}
+
+		for _, order := range orders {
+			output = append(output, OrderResponse{
+				Number:     strconv.Itoa(order.Extnum),
+				Status:     order.Status,
+				Accrual:    float32(order.Accrual),
+				UploadedAt: order.Crdt.Format("2006-01-02T15:04:05Z07:00"),
+			})
+		}
+
+		result, err := json.Marshal(output)
+
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			s.Log.Warnln("CAN'T MARSHAL ORDER LIST", err)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		_, err = w.Write(result)
+
+		if err != nil {
+			s.Log.Warnln("CAN'T WRITE BODY IN ORDER LIST", err)
+			return
+		}
+	}
+}
+
+func (s *Srv) actAcctBalance(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	CurrPersonID, ok := ctx.Value(contextParam("CurrPersonID")).(int)
+
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		s.Log.Warnln("INVALID PERSON ID")
+		return
+	}
+
+	person, err := s.Service.GetPersonByID(ctx, CurrPersonID)
+
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		s.Log.Warnln("INVALID PERSON ID")
+	}
+
+	balance, err := s.Service.GetBalance(ctx, person)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		s.Log.Errorln("CAN'T GET BALANCE BY PERSON:", err)
+		return
+	}
+
+	withdrawn, err := s.Service.Getwithdrawn(ctx, person)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		s.Log.Errorln("CAN'T WITHDRAWN BY PERSON:", err)
+		return
+	}
+
+	output, err := json.Marshal(BalanceResponce{
+		Current:   balance,
+		Withdrawn: withdrawn,
+	})
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		s.Log.Errorln("CAN'T MARSHAL DATA:[%v]", err)
+		return
+	}
+
+	w.Header().Set("Content-type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, err = w.Write(output)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		s.Log.Errorln("CAN'T WRITE DATA TO BODY:[%v]", err)
+		return
+	}
+}
+
+func (s *Srv) actWithdraw(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	currPersonID, ok := ctx.Value(contextParam("CurrPersonID")).(int)
+
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		s.Log.Warnln("INVALID PERSON ID")
+		return
+	}
+
+	person, err := s.Service.GetPersonByID(ctx, currPersonID)
+
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		s.Log.Warnln("INVALID PERSON ID")
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		s.Log.Warnln("CAN'T READ BODY")
+		return
+	}
+
+	defer func() {
+		err := r.Body.Close()
+		if err != nil {
+			s.Log.Warnln("CAN'T CLOSE BODY")
+		}
+	}()
+
+	input := WithdrawRequest{}
+
+	err = json.Unmarshal(body, &input)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		s.Log.Warnln("CAN'T UNMARSHAL BODY:", err)
+		return
+	}
+
+	extnum, err := strconv.Atoi(input.Order)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		s.Log.Warnln("CAN'T CONVERT STRING ORDER NUM TO INT:", err)
+		return
+	}
+	order, err := s.Service.GetOrder(ctx, models.POrder{Extnum: extnum})
+
+	if err != nil {
+		s.Log.Infoln("WITHDRAWN FOR NON CREATED ORDER:", input.Order)
+
+		order = models.POrder{
+			Extnum: extnum,
+		}
+	}
+
+	_, err = s.Service.CreateWithdrawn(ctx, person, order, input.Sum)
+
+	if err != nil {
+		if errors.Is(err, service.ErrRedSaldo) {
+			w.WriteHeader(http.StatusPaymentRequired)
+			s.Log.Infoln("RED SALDO:", err)
+			return
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+			s.Log.Warnln("CAN'T CREATE PAYMENT:", err)
+			return
+		}
+	}
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (s *Srv) actAcctStatement(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	currPersonID, ok := ctx.Value(contextParam("CurrPersonID")).(int)
+
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		s.Log.Warnln("INVALID PERSON ID")
+		return
+	}
+
+	person, err := s.Service.GetPersonByID(ctx, currPersonID)
+
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		s.Log.Warnln("INVALID PERSON ID")
+	}
+
+	rows, err := s.Service.GetWithdrawals(ctx, person)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		s.Log.Warnln("CAN'T GET STATEMENT:", err.Error())
+		return
+	}
+
+	if len(rows) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		s.Log.Warnln("STATEMENT IS EMPTY")
+		return
+	}
+
+	res := []WithdrawalsResponce{}
+
+	for _, opentry := range rows {
+		wr := WithdrawalsResponce{
+			Order:       strconv.Itoa(opentry.OrderExtNum),
+			Sum:         opentry.Sum1,
+			ProcessedAt: opentry.Crdt,
+		}
+		res = append(res, wr)
+	}
+
+	output, err := json.Marshal(res)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		s.Log.Warnln("CAN'T MARSHAL RESPONSE: [%v]", err)
+		return
+	}
+	w.Header().Set("Content-type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	_, err = w.Write(output)
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		s.Log.Errorln("CAN'T WRITE DATA TO BODY:[%v]", err)
+		return
+	}
+}
+
+func NewServer(log logger.Lg,
+	serv IStorage,
+	jwt IJwtService) (*Srv, error) {
+	var NoAuthActions = map[string]string{
+		"/api/user/register": "/api/user/register",
+		"/api/user/login":    "/api/user/login",
+	}
+	return &Srv{
+		Log:           log,
+		Service:       serv,
+		JwtService:    jwt,
+		NoAuthActions: NoAuthActions,
+	}, nil
+}
